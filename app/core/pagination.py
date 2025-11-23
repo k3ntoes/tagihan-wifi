@@ -63,10 +63,10 @@ class PaginationHandler(Generic[T]):
         where_clauses = []
         params = ()
         
-        for filter in filters.values():
-            if filter.value is not None:
-                where_clauses.append(f"{filter.field} {filter.operator} ?")
-                params += (f"%{filter.value}%" if filter.operator == "ILIKE" else filter.value,)
+        for _filter in filters.values():
+            if _filter.value is not None:
+                where_clauses.append(f"{_filter.field} {_filter.operator} ?")
+                params += (f"%{_filter.value}%" if _filter.operator == "ILIKE" else _filter.value,)
         
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
