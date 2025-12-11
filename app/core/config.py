@@ -1,8 +1,10 @@
-from pydantic_settings import BaseSettings
 import logging
-import os
-import yaml
 import logging.config
+import os
+
+import yaml
+from pydantic_settings import BaseSettings
+
 
 def setup_fallback_logging():
     """Fallback logging if config file not found!"""
@@ -12,19 +14,20 @@ def setup_fallback_logging():
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('logs/cronjob.log', encoding="utf-8")
-        ]
+            logging.FileHandler("logs/cronjob.log", encoding="utf-8"),
+        ],
     )
+
 
 def setup_logging():
     """Setup Logging from YAML"""
     # Create dir if not exists
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
 
     # Load YAML config
     try:
-        with open('logging_config.yaml', 'r') as f:
+        with open("logging_config.yaml", "r") as f:
             config = yaml.safe_load(f)
             logging.config.dictConfig(config)
     except FileNotFoundError:
@@ -34,21 +37,22 @@ def setup_logging():
         print(f"Error loading logging config: {e}")
         setup_fallback_logging()
 
+
 setup_logging()
-LOGGER = logging.getLogger('app')
+LOGGER = logging.getLogger("app")
 schedule_logger = logging.getLogger("schedule")
 
 
 class Settings(BaseSettings):
-    database_path: str
-    app_name: str
-    app_env: str
-    app_debug: bool
-    app_host: str
-    app_port: int
-    app_version: str
-    sqids_alphabet: str
-    sqids_min_length: int=8
+    database_path: str = ""
+    app_name: str = ""
+    app_env: str = ""
+    app_debug: bool = False
+    app_host: str = ""
+    app_port: int = 3000
+    app_version: str = ""
+    sqids_alphabet: str = ""
+    sqids_min_length: int = 8
 
     class Config:
         env_file = ".env"

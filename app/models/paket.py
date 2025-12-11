@@ -17,13 +17,19 @@ class PaketModel(BasePaket):
     id: int
     created_at: datetime.datetime
     updated_at: datetime.datetime
-    
+
     class Config:
         from_attributes = True
 
 
-class PaketResponse(PaketModel):
+class PaketMiniResponse(BaseModel):
     id: str
+    nama: str
+    harga: int
+    kecepatan: str
+
+
+class PaketResponse(PaketMiniResponse):
     created_at: str
     updated_at: str
 
@@ -33,8 +39,8 @@ class PaketPageableModel(BasePageableModel[PaketResponse]):
 
 
 class PaketRequest(BasePageRequest):
-    nama: Optional[str]=None
-    kecepatan: Optional[str]=None
+    nama: Optional[str] = None
+    kecepatan: Optional[str] = None
 
 
 class PaketPostRequest(BaseModel):
@@ -42,7 +48,8 @@ class PaketPostRequest(BaseModel):
     harga: int
     kecepatan: str
 
-class PaketHelper:
+
+class PaketModelHelper:
     def __init__(self):
         self.sqids = SqidsManager()
 
@@ -53,17 +60,17 @@ class PaketHelper:
         try:
             created_at = row.get("created_at")
             updated_at = row.get("updated_at")
-            
+
             if not isinstance(created_at, (datetime.datetime, str)):
                 raise ValueError("Invalid created_at format")
             if not isinstance(updated_at, (datetime.datetime, str)):
                 raise ValueError("Invalid updated_at format")
-                
+
             if isinstance(created_at, datetime.datetime):
                 created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 created_at_str = str(created_at)
-                
+
             if isinstance(updated_at, datetime.datetime):
                 updated_at_str = updated_at.strftime("%Y-%m-%d %H:%M:%S")
             else:
@@ -80,24 +87,24 @@ class PaketHelper:
             return PaketResponse(**paket_data)
         except Exception as e:
             raise ValueError(f"Error mapping row to PaketResponse: {e}")
-    
+
     def map_from_tuple(self, row: tuple) -> Optional[PaketResponse]:
         if not row:
             return None
         try:
             created_at = row[4]
             updated_at = row[5]
-            
+
             if not isinstance(created_at, (datetime.datetime, str)):
                 raise ValueError("Invalid created_at format")
             if not isinstance(updated_at, (datetime.datetime, str)):
                 raise ValueError("Invalid updated_at format")
-                
+
             if isinstance(created_at, datetime.datetime):
                 created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 created_at_str = str(created_at)
-                
+
             if isinstance(updated_at, datetime.datetime):
                 updated_at_str = updated_at.strftime("%Y-%m-%d %H:%M:%S")
             else:

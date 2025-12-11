@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/app/core/database.py" value="0a4da045-f538-4093-8263-78581ff463a5" />
+    <file url="file://$PROJECT_DIR$/app/repositories/pelanggan.py" value="0a4da045-f538-4093-8263-78581ff463a5" />
+    <file url="file://$PROJECT_DIR$/app/repositories/tagihan.py" value="0a4da045-f538-4093-8263-78581ff463a5" />
+  </component>
+</project>

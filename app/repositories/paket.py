@@ -3,13 +3,18 @@ from fastapi import HTTPException
 
 from app.core.config import LOGGER
 from app.core.pagination import FilterType, PaginationHandler
-from app.models.paket import PaketHelper, PaketModel, PaketPostRequest, PaketRequest
+from app.models.paket import (
+    PaketModelHelper,
+    PaketModel,
+    PaketPostRequest,
+    PaketRequest,
+)
 
 
 class PaketRepository:
     def __init__(self):
         self.base_select = "SELECT * FROM paket"
-        self.paket_helper = PaketHelper()
+        self.paket_helper = PaketModelHelper()
         self.paginator = PaginationHandler(
             base_query=self.base_select,
             count_query="SELECT COUNT(*) as count FROM paket",
@@ -27,7 +32,9 @@ class PaketRepository:
             sort=req.sort,
             direction=req.direction,
             nama=FilterType(field="paket.nama", value=req.nama, operator="ILIKE"),
-            kecepatan=FilterType(field="paket.kecepatan", value=req.kecepatan, operator="ILIKE"),
+            kecepatan=FilterType(
+                field="paket.kecepatan", value=req.kecepatan, operator="ILIKE"
+            ),
         )
 
     def create(self, db: DuckDBPyConnection, req: PaketPostRequest):
@@ -45,7 +52,7 @@ class PaketRepository:
         try:
             query = "SELECT * FROM paket WHERE id=?"
             params = (id,)
-            result=db.execute(query, params).fetchone()
+            result = db.execute(query, params).fetchone()
             if not result:
                 raise HTTPException(status_code=404, detail="Paket not found")
             return self.paket_helper.map_from_tuple(result)
@@ -57,9 +64,8 @@ class PaketRepository:
 
     def update(self, db: DuckDBPyConnection, id: int, req: PaketPostRequest) -> bool:
         try:
-            exist=self.get_by_id(db, id)
-            if not exist:
-                raise HTTPException(status_code=404, detail="Paket not found")
+            # get_by_id already raises 404 if not found
+            self.get_by_id(db, id)
             query = "UPDATE paket SET nama=?, harga=?, kecepatan=? WHERE id=?"
             params = (req.nama, req.harga, req.kecepatan, id)
             db.execute(query, params)
@@ -73,9 +79,8 @@ class PaketRepository:
 
     def delete(self, db: DuckDBPyConnection, id: int) -> bool:
         try:
-            exist = self.get_by_id(db, id)
-            if not exist:
-                raise HTTPException(status_code=404, detail="Paket not found")
+            # get_by_id already raises 404 if not found
+            self.get_by_id(db, id)
 
             query = "DELETE FROM paket WHERE id=?"
             params = (id,)

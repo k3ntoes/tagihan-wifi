@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from app.core.sqids_manager import SqidsManager
 from app.models.base import BasePageableModel, BasePageRequest
-from app.models.paket import PaketHelper, PaketModel, PaketResponse
+from app.models.paket import PaketModelHelper, PaketModel, PaketResponse
 
 
 class PelangganModel(BaseModel):
@@ -17,11 +17,14 @@ class PelangganModel(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-class PelangganResponse(PelangganModel):
+class PelangganMiniResponse(BaseModel):
     id: str
+    nama: str
+
+class PelangganResponse(PelangganMiniResponse):
     paket: PaketResponse
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 class PelangganPageableModel(BasePageableModel):
     content: list[PelangganResponse]
@@ -39,7 +42,7 @@ class PelangganPostRequest(BaseModel):
 class PelangganModelHelper:
     def __init__(self):
         self.sqids=SqidsManager()
-        self.paket_helper=PaketHelper()
+        self.paket_helper=PaketModelHelper()
 
 
     def map_to_model(self, row: dict) -> PelangganResponse:

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core.config import LOGGER, settings
-from app.routers import paket_router, pelanggan_router
+from app.routers import paket_router, pelanggan_router, tagihan_router
 from app.core.database import init_db, con
 
 @asynccontextmanager
@@ -23,3 +23,4 @@ app = FastAPI(
 
 app.include_router(paket_router)
 app.include_router(pelanggan_router)
+app.include_router(tagihan_router)
