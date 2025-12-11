@@ -20,6 +20,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "autoimport>=1.6.1",
+    "httpx>=0.27.0",
     "icecream>=2.1.8",
     "isort>=7.0.0",
+    "pytest>=9.0.2",
 ]

@@ -19,27 +19,6 @@ def init_db():
         cursor.commit()
 
         cursor.execute("""
-                       CREATE TABLE IF NOT EXISTS users
-                       (
-                           id INTEGER PRIMARY KEY DEFAULT NEXTVAL('seq_users'),
-                           username VARCHAR(50) NOT NULL UNIQUE,
-                           email VARCHAR(255) NOT NULL UNIQUE,
-                           hashed_password TEXT NOT NULL,
-                           is_active BOOLEAN DEFAULT TRUE,
-                           is_superuser BOOLEAN DEFAULT FALSE,
-                           role VARCHAR(20) DEFAULT 'USER',
-                           pelanggan_id INTEGER,
-                           reset_token VARCHAR(255),
-                           reset_token_expires TIMESTAMP,
-                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                           FOREIGN KEY(pelanggan_id) REFERENCES pelanggan(id)
-                       );
-                       """)
-        LOGGER.info("Table users created")
-        cursor.commit()
-
-        cursor.execute("""
                        CREATE TABLE IF NOT EXISTS paket
                        (
                            id INTEGER PRIMARY KEY DEFAULT NEXTVAL('seq_paket'),
@@ -70,6 +49,27 @@ def init_db():
                        );
                        """)
         LOGGER.info("Table pelanggan created")
+        cursor.commit()
+
+        cursor.execute("""
+                       CREATE TABLE IF NOT EXISTS users
+                       (
+                           id INTEGER PRIMARY KEY DEFAULT NEXTVAL('seq_users'),
+                           username VARCHAR(50) NOT NULL UNIQUE,
+                           email VARCHAR(255) NOT NULL UNIQUE,
+                           hashed_password TEXT NOT NULL,
+                           is_active BOOLEAN DEFAULT TRUE,
+                           is_superuser BOOLEAN DEFAULT FALSE,
+                           role VARCHAR(20) DEFAULT 'USER',
+                           pelanggan_id INTEGER,
+                           reset_token VARCHAR(255),
+                           reset_token_expires TIMESTAMP,
+                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                           FOREIGN KEY(pelanggan_id) REFERENCES pelanggan(id)
+                       );
+                       """)
+        LOGGER.info("Table users created")
         cursor.commit()
 
         cursor.execute("""
