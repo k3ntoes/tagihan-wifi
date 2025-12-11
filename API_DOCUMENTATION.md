@@ -6,6 +6,8 @@
 - **Content-Type**: `application/json`
 - **Framework**: FastAPI
 - **Database**: DuckDB
+- **Authentication**: JWT (JSON Web Token)
+- **Authorization**: Role-Based Access Control (RBAC)
 
 ## Global Response Structure
 
@@ -49,12 +51,337 @@ Semua ID dalam response menggunakan **Sqids** (encoded string) untuk keamanan.
 
 ---
 
+## Authentication & Authorization
+
+### Authentication
+Semua endpoint (kecuali authentication endpoints) memerlukan **JWT token** dalam Authorization header.
+
+**Format Header:**
+```
+Authorization: Bearer <access_token>
+```
+
+### Roles
+Sistem menggunakan 2 role:
+- **ADMIN**: Full access ke semua endpoints
+- **USER**: Limited access - hanya bisa melihat data tagihan mereka sendiri
+
+### Access Control Matrix
+
+| Endpoint | ADMIN | USER |
+|----------|-------|------|
+| `/auth/*` | ✅ | ✅ |
+| `/paket/*` | ✅ | ❌ (403 Forbidden) |
+| `/pelanggan/*` | ✅ | ❌ (403 Forbidden) |
+| `/tagihan/` (GET) | ✅ All data | ✅ Filtered by pelanggan_id |
+| `/tagihan/summary/{tahun}` | ✅ All data | ✅ Filtered by pelanggan_id |
+| `/tagihan/{id}` (GET) | ✅ | ❌ (403 Forbidden) |
+| `/tagihan/` (POST/PUT/DELETE) | ✅ | ❌ (403 Forbidden) |
+
+---
+
+## 0. Authentication Endpoints
+
+### 0.1 User Registration
+**Endpoint**: `POST /auth/register`
+
+**Description**: Mendaftarkan user baru
+
+**Authentication**: None required
+
+**Request Body**:
+```json
+{
+  "username": "testuser",
+  "email": "user@example.com",
+  "password": "securepassword123",
+  "role": "USER"
+}
+```
+
+**Request Body Schema**:
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| username | string | Yes | - | Username (min 3 chars) |
+| email | string (email) | Yes | - | Email address |
+| password | string | Yes | - | Password (min 6 chars) |
+| role | string | No | USER | Role: ADMIN or USER |
+
+**Response Success (201)**:
+```json
+{
+  "id": 2,
+  "username": "testuser",
+  "email": "user@example.com",
+  "is_active": true,
+  "is_superuser": false,
+  "role": "USER",
+  "pelanggan_id": null,
+  "created_at": "2025-12-11T19:00:00",
+  "updated_at": "2025-12-11T19:00:00"
+}
+```
+
+**Response Error (400)**:
+```json
+{
+  "detail": "Username already registered"
+}
+```
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:3000/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser",
+    "email": "user@example.com",
+    "password": "securepassword123"
+  }'
+```
+
+---
+
+### 0.2 User Login
+**Endpoint**: `POST /auth/login`
+
+**Description**: Login dan mendapatkan access token
+
+**Authentication**: None required
+
+**Request Body** (form-urlencoded):
+```
+username=admin&password=admin123
+```
+
+**Response Success (200)**:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+**Response Error (401)**:
+```json
+{
+  "detail": "Incorrect username or password"
+}
+```
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:3000/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=admin123"
+```
+
+---
+
+### 0.3 Refresh Token
+**Endpoint**: `POST /auth/refresh`
+
+**Description**: Refresh access token menggunakan refresh token
+
+**Authentication**: None required
+
+**Request Body**:
+```json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response Success (200)**:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:3000/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "your_refresh_token_here"}'
+```
+
+---
+
+### 0.4 Get Current User
+**Endpoint**: `GET /auth/me`
+
+**Description**: Mendapatkan informasi user yang sedang login
+
+**Authentication**: Required (Bearer token)
+
+**Response Success (200)**:
+```json
+{
+  "id": 1,
+  "username": "admin",
+  "email": "admin@example.com",
+  "is_active": true,
+  "is_superuser": true,
+  "role": "ADMIN",
+  "pelanggan_id": null,
+  "created_at": "2025-12-11T19:00:00",
+  "updated_at": "2025-12-11T19:00:00"
+}
+```
+
+**Example Request**:
+```bash
+TOKEN="your_access_token_here"
+curl -X GET "http://localhost:3000/auth/me" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### 0.5 Change Password
+**Endpoint**: `POST /auth/change-password`
+
+**Description**: Mengubah password user yang sedang login
+
+**Authentication**: Required (Bearer token)
+
+**Request Body**:
+```json
+{
+  "old_password": "currentpassword",
+  "new_password": "newpassword123"
+}
+```
+
+**Request Body Schema**:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| old_password | string | Yes | Password lama |
+| new_password | string | Yes | Password baru (min 6 chars) |
+
+**Response Success (200)**:
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
+**Response Error (400)**:
+```json
+{
+  "detail": "Incorrect old password"
+}
+```
+
+**Example Request**:
+```bash
+TOKEN="your_access_token_here"
+curl -X POST "http://localhost:3000/auth/change-password" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "old_password": "admin123",
+    "new_password": "newadmin123"
+  }'
+```
+
+---
+
+### 0.6 Forgot Password
+**Endpoint**: `POST /auth/forgot-password`
+
+**Description**: Request reset password token
+
+**Authentication**: None required
+
+**Request Body**:
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response Success (200)**:
+```json
+{
+  "message": "If email exists, reset token has been sent",
+  "reset_token": "abc123xyz...",
+  "expires_at": "2025-12-11T20:00:00"
+}
+```
+
+> **Note**: Dalam production, `reset_token` tidak dikembalikan di response. Token harus dikirim via email.
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:3000/auth/forgot-password" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+---
+
+### 0.7 Reset Password
+**Endpoint**: `POST /auth/reset-password`
+
+**Description**: Reset password menggunakan reset token
+
+**Authentication**: None required
+
+**Request Body**:
+```json
+{
+  "token": "reset_token_from_email",
+  "new_password": "newpassword123"
+}
+```
+
+**Request Body Schema**:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| token | string | Yes | Reset token dari email |
+| new_password | string | Yes | Password baru (min 6 chars) |
+
+**Response Success (200)**:
+```json
+{
+  "message": "Password reset successfully"
+}
+```
+
+**Response Error (400)**:
+```json
+{
+  "detail": "Invalid or expired reset token"
+}
+```
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:3000/auth/reset-password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "abc123xyz...",
+    "new_password": "newpassword123"
+  }'
+```
+
+---
+
 ## 1. Paket (Package) Endpoints
 
 ### 1.1 Get All Paket
 **Endpoint**: `GET /paket`
 
 **Description**: Mengambil daftar semua paket dengan pagination
+
+**Authentication**: Required (Bearer token)
+
+**Authorization**: ADMIN only
 
 **Query Parameters**:
 | Parameter | Type | Required | Default | Description |
@@ -92,7 +419,9 @@ Semua ID dalam response menggunakan **Sqids** (encoded string) untuk keamanan.
 
 **Example Request**:
 ```bash
-curl -X GET "http://localhost:3000/paket?page=1&size=10&nama=Premium"
+TOKEN="your_admin_token_here"
+curl -X GET "http://localhost:3000/paket?page=1&size=10&nama=Premium" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
@@ -737,6 +1066,9 @@ curl -X GET "http://localhost:3000/tagihan/summary/2024"
 |-------------|-------------|
 | 200 | OK - Request berhasil |
 | 201 | Created - Resource berhasil dibuat |
+| 400 | Bad Request - Request tidak valid |
+| 401 | Unauthorized - Token tidak valid atau tidak ada |
+| 403 | Forbidden - Tidak memiliki permission |
 | 404 | Not Found - Resource tidak ditemukan |
 | 422 | Validation Error - Data input tidak valid |
 | 500 | Internal Server Error - Error di server |
@@ -764,6 +1096,17 @@ curl -X GET "http://localhost:3000/tagihan/summary/2024"
 ### 4. Error Handling
 - Error responses memiliki field `detail` atau `errors` yang berisi pesan error
 - Periksa HTTP status code untuk mengetahui jenis error
+
+### 5. Authentication
+- Gunakan `/auth/login` untuk mendapatkan access token
+- Include access token di header: `Authorization: Bearer <token>`
+- Access token berlaku 30 menit, refresh token 7 hari
+- ADMIN memiliki full access, USER hanya bisa akses tagihan mereka
+
+### 6. Default Credentials
+- Username: `admin`
+- Password: `newadmin123`
+- Role: `ADMIN`
 
 ---
 

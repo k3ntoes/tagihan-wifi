@@ -63,6 +63,24 @@ class TagihanRepository:
             paket_id=FilterType(field="p.paket_id", value=req.paket_id),
         )
 
+    def get_page_by_pelanggan(
+        self, db: duckdb.DuckDBPyConnection, req: TagihanRequest, pelanggan_id: int
+    ):
+        """Get paginated tagihan filtered by pelanggan_id for USER role."""
+        return self.paginator.get_page(
+            db=db,
+            page=req.page,
+            size=req.size,
+            sort=req.sort,
+            direction=req.direction,
+            tahun=FilterType(field="t.tahun", value=req.tahun),
+            bulan=FilterType(field="t.bulan", value=req.bulan),
+            pelanggan_id=FilterType(
+                field="t.pelanggan_id", value=pelanggan_id
+            ),  # Force filter
+            paket_id=FilterType(field="p.paket_id", value=req.paket_id),
+        )
+
     def fetch_by_id(self, id: int, db: duckdb.DuckDBPyConnection):
         query = """
                 SELECT t.id            AS id,
@@ -172,6 +190,44 @@ class TagihanRepository:
                 WHERE tahun = ?
                 """
         params = (tahun,)
+        try:
+            cursor = db.execute(query, params)
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            items = [dict(zip(columns, row)) for row in rows]
+            sqids_salt = secrets.randbelow(1_000)
+            result = [
+                {
+                    "id": sqids.encode(item["id"], salt=sqids_salt),
+                    "pelanggan_id": sqids.encode(item["pelanggan_id"], salt=sqids_salt),
+                    "paket_id": sqids.encode(item["paket_id"], salt=sqids_salt),
+                    "tahun": item["tahun"],
+                    "bulan": item["bulan"],
+                    "tanggal_bayar": item["tanggal_bayar"].strftime("%Y-%m-%d"),
+                    "created_at": item["created_at"].strftime("%Y-%m-%d %H:%M:%S"),
+                    "updated_at": item["updated_at"].strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                for item in items
+            ]
+            return result
+        except Exception as e:
+            LOGGER.error(e)
+            raise HTTPException(status_code=400, detail=str(e))
+
+    def fetch_summary_by_pelanggan(
+        self,
+        tahun: str,
+        db: duckdb.DuckDBPyConnection,
+        sqids: SqidsManager,
+        pelanggan_id: int,
+    ):
+        """Fetch summary filtered by pelanggan_id for USER role."""
+        query = """
+                SELECT *
+                FROM tagihan
+                WHERE tahun = ? AND pelanggan_id = ?
+                """
+        params = (tahun, pelanggan_id)
         try:
             cursor = db.execute(query, params)
             columns = [desc[0] for desc in cursor.description]

@@ -13,8 +13,30 @@ def init_db():
             CREATE SEQUENCE IF NOT EXISTS seq_paket START 1 INCREMENT 1;
             CREATE SEQUENCE IF NOT EXISTS seq_pelanggan START 1 INCREMENT 1;
             CREATE SEQUENCE IF NOT EXISTS seq_tagihan START 1 INCREMENT 1;
+            CREATE SEQUENCE IF NOT EXISTS seq_users START 1 INCREMENT 1;
         """)
         LOGGER.info("Sequences created")
+        cursor.commit()
+
+        cursor.execute("""
+                       CREATE TABLE IF NOT EXISTS users
+                       (
+                           id INTEGER PRIMARY KEY DEFAULT NEXTVAL('seq_users'),
+                           username VARCHAR(50) NOT NULL UNIQUE,
+                           email VARCHAR(255) NOT NULL UNIQUE,
+                           hashed_password TEXT NOT NULL,
+                           is_active BOOLEAN DEFAULT TRUE,
+                           is_superuser BOOLEAN DEFAULT FALSE,
+                           role VARCHAR(20) DEFAULT 'USER',
+                           pelanggan_id INTEGER,
+                           reset_token VARCHAR(255),
+                           reset_token_expires TIMESTAMP,
+                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                           FOREIGN KEY(pelanggan_id) REFERENCES pelanggan(id)
+                       );
+                       """)
+        LOGGER.info("Table users created")
         cursor.commit()
 
         cursor.execute("""
@@ -95,6 +117,22 @@ def init_db():
                        ON CONFLICT DO NOTHING;
                        """)
         LOGGER.info("Initial data tagihan inserted")
+        cursor.commit()
+
+        # Create default admin user
+        from app.core.auth import get_password_hash
+
+        admin_password_hash = get_password_hash("admin123")
+        cursor.execute(
+            """
+                       INSERT INTO users (username, email, hashed_password, is_superuser, role)
+                       FROM VALUES ('admin', 'admin@example.com', ?, TRUE, 'ADMIN')
+                       AS t(username, email, hashed_password, is_superuser, role)
+                       ON CONFLICT DO NOTHING;
+                       """,
+            [admin_password_hash],
+        )
+        LOGGER.info("Initial admin user created")
         cursor.commit()
 
 
