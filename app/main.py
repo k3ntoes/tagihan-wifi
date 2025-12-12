@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.core.config import LOGGER, settings
 from app.routers import auth_router, paket_router, pelanggan_router, tagihan_router
 from app.core.database import init_db, con
+from fastapi.middleware.cors import CORSMiddleware
 
 
 @asynccontextmanager
@@ -21,6 +22,14 @@ app = FastAPI(
     description="API for tagihan wifi",
     version=settings.app_version,
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth_router)

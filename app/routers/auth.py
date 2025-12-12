@@ -104,7 +104,9 @@ async def login(
         )
 
     # Create tokens
-    access_token = create_access_token(data={"sub": user["username"]})
+    access_token = create_access_token(
+        data={"sub": user["username"], "role": user["role"]}
+    )
     refresh_token = create_refresh_token(data={"sub": user["username"]})
 
     return Token(access_token=access_token, refresh_token=refresh_token)
