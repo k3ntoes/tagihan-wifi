@@ -1,27 +1,70 @@
+[build-system]
+requires = [
+    "setuptools>=68.0", 
+    "wheel",
+    "fastapi>=0.128.0",
+    "uvicorn[standard]>=0.40.0",
+    "duckdb>=1.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pyjwt>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "bcrypt>=4.0.0",
+    "sqids>=0.4.0",
+]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "tagihan-wifi"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "FastAPI backend for WiFi billing management with DuckDB"
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [{name = "Development Team"}]
+license = {text = "Proprietary"}
+
 dependencies = [
+    "fastapi>=0.128.0",
+    "uvicorn[standard]>=0.40.0",
+    "duckdb>=1.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pyjwt>=2.8.0",
+    "python-dotenv>=1.0.0",
     "bcrypt>=4.0.0",
-    "duckdb>=1.4.1",
-    "email-validator>=2.1.0",
-    "fastapi>=0.121.0",
-    "pydantic>=2.12.4",
-    "pydantic-settings>=2.11.0",
-    "python-jose[cryptography]>=3.3.0",
-    "python-multipart>=0.0.9",
-    "sqids>=0.5.2",
-    "uvicorn[standard]>=0.38.0",
+    "sqids>=0.4.0",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
-    "autoimport>=1.6.1",
-    "httpx>=0.27.0",
-    "icecream>=2.1.8",
-    "isort>=7.0.0",
-    "pytest>=9.0.2",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/tagihan-wifi"
+Documentation = "https://github.com/yourusername/tagihan-wifi/blob/main/README.md"
+Repository = "https://github.com/yourusername/tagihan-wifi.git"
+Issues = "https://github.com/yourusername/tagihan-wifi/issues"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_mode = 3
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
