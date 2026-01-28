@@ -1,7 +1,0 @@
-.venv
-logs/*.log
-/tests/
-.git
-.gitignore
-Dockerfile
-docker-compose.yml
