@@ -2,6 +2,7 @@ from typing import Annotated
 
 from duckdb import DuckDBPyConnection
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from app.core.database import get_db
 from app.core.rbac import require_admin
@@ -34,9 +35,9 @@ def get_by_id(
     repo: PelangganRepository = Depends(PelangganRepository),
     sqids: SqidsManager = Depends(),
 ):
-    if not sqids.decode(id):
+    if not sqids.decode(id.split("_")[-1]):
         raise HTTPException(status_code=404, detail="Data not found")
-    data = repo.get_by_id(db, sqids.decode(id))
+    data = repo.get_by_id(db, sqids.decode(id.split("_")[-1]))
     if data:
         return data
     raise HTTPException(status_code=404, detail="Data not found")
@@ -50,7 +51,7 @@ def create(
     repo: PelangganRepository = Depends(PelangganRepository),
 ):
     repo.create(db, req)
-    return {"message": "Data created successfully"}
+    return JSONResponse(status_code=201,content={"message": "Data created successfully"})
 
 
 @router.put("/{id}")
@@ -62,10 +63,10 @@ def update(
     repo: PelangganRepository = Depends(PelangganRepository),
     sqids: SqidsManager = Depends(),
 ):
-    if not sqids.decode(id):
+    if not sqids.decode(id.split("_")[-1]):
         raise HTTPException(status_code=404, detail="Data not found")
-    repo.update(db, sqids.decode(id), req)
-    return {"message": "Data updated successfully"}
+    repo.update(db, sqids.decode(id.split("_")[-1]), req)
+    return JSONResponse(content={"message": "Data updated successfully"}, status_code=200)
 
 
 @router.delete("/{id}")
@@ -76,7 +77,7 @@ def delete(
     repo: PelangganRepository = Depends(PelangganRepository),
     sqids: SqidsManager = Depends(),
 ):
-    if not sqids.decode(id):
+    if not sqids.decode(id.split("_")[-1]):
         raise HTTPException(status_code=404, detail="Data not found")
-    repo.delete(db, sqids.decode(id))
-    return {"message": "Data deleted successfully"}
+    repo.delete(db, sqids.decode(id.split("_")[-1]))
+    return JSONResponse(content={"message": "Data deleted successfully"})

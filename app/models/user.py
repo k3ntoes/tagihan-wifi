@@ -33,7 +33,7 @@ class UserUpdate(BaseModel):
 class UserInDB(UserBase):
     """Schema for user in database."""
 
-    id: int
+    id: str
     hashed_password: str
     is_active: bool = True
     is_superuser: bool = False
@@ -49,7 +49,7 @@ class UserInDB(UserBase):
 class User(UserBase):
     """Schema for user response (without password)."""
 
-    id: int
+    id: str
     is_active: bool = True
     is_superuser: bool = False
     role: Role = Role.USER

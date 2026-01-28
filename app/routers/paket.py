@@ -50,9 +50,9 @@ def get_by_id(
     sqids: SqidsManager = Depends(SqidsManager),
 ):
     try:
-        if not sqids.decode(id):
+        if not sqids.decode(id.split("_")[-1]):
             raise HTTPException(status_code=404, detail="Paket not found")
-        data = repo.get_by_id(db, sqids.decode(id))
+        data = repo.get_by_id(db, sqids.decode(id.split("_")[-1]))
         return JSONResponse(content=data.model_dump())
     except HTTPException as e:
         return JSONResponse(status_code=e.status_code, content={"errors": e.detail})
@@ -68,9 +68,9 @@ def update(
     sqids: SqidsManager = Depends(SqidsManager),
 ):
     try:
-        if not sqids.decode(id):
+        if not sqids.decode(id.split("_")[-1]):
             raise HTTPException(status_code=404, detail="Paket not found")
-        repo.update(db, sqids.decode(id), req)
+        repo.update(db, sqids.decode(id.split("_")[-1]), req)
         return JSONResponse(
             content={"message": "Paket updated successfully"}, status_code=200
         )
@@ -87,9 +87,9 @@ def delete(
     sqids: SqidsManager = Depends(SqidsManager),
 ):
     try:
-        if not sqids.decode(id):
+        if not sqids.decode(id.split("_")[-1]):
             raise HTTPException(status_code=404, detail="Paket not found")
-        repo.delete(db, sqids.decode(id))
+        repo.delete(db, sqids.decode(id.split("_")[-1]))
         return JSONResponse(
             content={"message": "Paket deleted successfully"}, status_code=200
         )

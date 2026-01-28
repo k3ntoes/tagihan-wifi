@@ -3,6 +3,7 @@ from typing import Optional
 import duckdb
 
 from app.core.auth import get_password_hash
+from app.core.sqids_manager import SqidsManager
 from app.models.user import UserCreate, UserUpdate
 
 
@@ -11,6 +12,7 @@ class UserRepository:
 
     def __init__(self, db: duckdb.DuckDBPyConnection):
         self.db = db
+        self.sqids = SqidsManager()
 
     def get_by_username(self, username: str) -> Optional[dict]:
         """Get user by username."""
@@ -22,7 +24,10 @@ class UserRepository:
             return None
 
         columns = [desc[0] for desc in self.db.description]
-        return dict(zip(columns, result))
+        result = dict(zip(columns, result))
+        usr_id = self.sqids.encode(result.get("id"))
+        result["id"] = f"usr_{usr_id}"
+        return result
 
     def get_by_email(self, email: str) -> Optional[dict]:
         """Get user by email."""
@@ -34,7 +39,10 @@ class UserRepository:
             return None
 
         columns = [desc[0] for desc in self.db.description]
-        return dict(zip(columns, result))
+        result = dict(zip(columns, result))
+        usr_id = self.sqids.encode(result.get("id"))
+        result["id"] = f"usr_{usr_id}"
+        return result
 
     def get_by_id(self, user_id: int) -> Optional[dict]:
         """Get user by ID."""
@@ -64,7 +72,10 @@ class UserRepository:
         self.db.commit()
 
         columns = [desc[0] for desc in self.db.description]
-        return dict(zip(columns, result))
+        result = dict(zip(columns, result))
+        usr_id = self.sqids.encode(result.get("id"))
+        result["id"] = f"usr_{usr_id}"
+        return result
 
     def update(self, user_id: int, user_update: UserUpdate) -> Optional[dict]:
         """Update user data."""
@@ -174,7 +185,10 @@ class UserRepository:
             return None
 
         columns = [desc[0] for desc in self.db.description]
-        return dict(zip(columns, result))
+        result = dict(zip(columns, result))
+        usr_id = self.sqids.encode(result.get("id"))
+        result["id"] = f"usr_{usr_id}"
+        return result
 
     def clear_reset_token(self, user_id: int) -> bool:
         """Clear reset token after use."""

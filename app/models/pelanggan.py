@@ -66,8 +66,9 @@ class PelangganModelHelper:
             paket = self.paket_helper.map_to_model(paket_data)
             
             # Create PelangganModel with the nested PaketModel
+            pelanggan_id=self.sqids.encode(row.get("id"))
             pelanggan_data = {
-                "id": self.sqids.encode(row.get("id")),
+                "id": f"pel_{pelanggan_id}",
                 "nama": row.get("nama"),
                 "alamat": row.get("alamat"),
                 "no_hp": row.get("no_hp"),
@@ -77,40 +78,3 @@ class PelangganModelHelper:
             }
             
             return PelangganResponse(**pelanggan_data)
-    
-    def map_from_tuple(self, row: tuple) -> PelangganResponse:
-        if not row:
-            raise ValueError("Invalid row format")
-        try:
-            created_at = row[6]
-            updated_at = row[7]
-            
-            if not isinstance(created_at, (datetime, str)):
-                raise ValueError("Invalid created_at format")
-            if not isinstance(updated_at, (datetime, str)):
-                raise ValueError("Invalid updated_at format")
-                
-            if isinstance(created_at, datetime):
-                created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                created_at_str = str(created_at)
-                
-            if isinstance(updated_at, datetime):
-                updated_at_str = updated_at.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                updated_at_str = str(updated_at)
-
-            pelanggan_data = {
-                "id": self.sqids.encode(row[0]),
-                "nama": row[1],
-                "alamat": row[2],
-                "no_hp": row[3],
-                "paket": self.paket_helper.map_from_tuple(
-                    (row[4], row[7], row[8], row[9], row[10], row[11])
-                ),
-                "created_at": created_at_str,
-                "updated_at": updated_at_str,
-            }
-            return PelangganResponse(**pelanggan_data)
-        except Exception as e:
-            raise ValueError(f"Error mapping row to PelangganResponse: {e}")

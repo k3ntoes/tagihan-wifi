@@ -56,7 +56,9 @@ class TagihanPostRequest(BaseModel):
 
 
 class TagihanModelHelper:
-    def __init__(self, ):
+    def __init__(
+        self,
+    ):
         self.sqids = SqidsManager()
         self.pelanggan_helper = PelangganModelHelper()
         self.paket_helper = PaketModelHelper()
@@ -65,25 +67,28 @@ class TagihanModelHelper:
         if not row:
             return None
 
+        pelanggan_id = self.sqids.decode(row.get("pelanggan_id"))
         pelanggan = PelangganMiniResponse(
-            id=self.sqids.encode(row.get("pelanggan_id")),
+            id=f"pel_{pelanggan_id}",
             nama=row.get("nama_pelanggan"),
         )
 
+        paket_id = self.sqids.decode(row.get("paket_id"))
         paket = PaketMiniResponse(
-            id=self.sqids.encode(row.get("pelanggan_id")),
-            nama=row.get("nama_pelanggan"),
+            id=f"pak_{paket_id}",
+            nama=row.get("nama_paket"),
             kecepatan=row.get("kecepatan"),
             harga=row.get("harga"),
         )
 
+        tagihan_id = self.sqids.encode(row.get("id"))
         return TagihanResponse(
-            id=self.sqids.encode(row.get('id')),
-            tanggal_bayar=row.get('tanggal_bayar').strftime('%Y-%m-%d'),
+            id=f"tag_{tagihan_id}",
+            tanggal_bayar=row.get("tanggal_bayar").strftime("%Y-%m-%d"),
             tahun=row.get("tahun"),
             bulan=row.get("bulan"),
             pelanggan=pelanggan,
             paket=paket,
-            created_at=row.get('created_at').strftime('%Y-%m-%d %H:%M:%S'),
-            updated_at=row.get('updated_at').strftime('%Y-%m-%d %H:%M:%S'),
+            created_at=row.get("created_at").strftime("%Y-%m-%d %H:%M:%S"),
+            updated_at=row.get("updated_at").strftime("%Y-%m-%d %H:%M:%S"),
         )

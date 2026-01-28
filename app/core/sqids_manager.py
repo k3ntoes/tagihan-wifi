@@ -1,6 +1,5 @@
 import random
-import secrets
-import time
+from datetime import date
 from typing import Optional
 
 from sqids import Sqids
@@ -27,11 +26,9 @@ class SqidsManager:
         return "".join(alphabet_list)
 
     def encode(self, number: int, salt: Optional[int] = None) -> str:
-        random1 = secrets.randbelow(1_000)
-        random2 = secrets.randbelow(10_000)
-        timestamp_component = int(time.time() * 1000) % 100_000
+        sekarang=date.today()
         return (
-            self.base_sqids.encode([number, random1, random2, timestamp_component])
+            self.base_sqids.encode([number, sekarang.year, sekarang.month, sekarang.day])
             if not salt
             else self.base_sqids.encode([number, salt])
         )

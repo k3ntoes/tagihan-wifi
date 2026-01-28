@@ -76,8 +76,9 @@ class PaketModelHelper:
             else:
                 updated_at_str = str(updated_at)
 
+            paket_id=self.sqids.encode(row.get("id"))
             paket_data = {
-                "id": self.sqids.encode(row.get("id")),
+                "id": f"pak_{paket_id}",
                 "nama": row.get("nama"),
                 "harga": row.get("harga"),
                 "kecepatan": row.get("kecepatan"),
@@ -110,8 +111,9 @@ class PaketModelHelper:
             else:
                 updated_at_str = str(updated_at)
 
+            paket_id=self.sqids.encode(row[0])
             paket_data = {
-                "id": self.sqids.encode(row[0]),
+                "id": f"pak_{paket_id}",
                 "nama": row[1],
                 "harga": row[2],
                 "kecepatan": row[3],

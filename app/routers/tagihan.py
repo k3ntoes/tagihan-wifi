@@ -54,11 +54,11 @@ async def get_tagihan_by_id(
     repo: Annotated[TagihanRepository, Depends(TagihanRepository)],
     sqids: Annotated[SqidsManager, Depends(SqidsManager)],
 ):
-    data = repo.fetch_by_id(sqids.decode(id), db)
+    data = repo.fetch_by_id(sqids.decode(id.split("_")[-1]), db)
     LOGGER.info(data)
     if data is None:
         raise HTTPException(status_code=404, detail="Tagihan not found")
-    return data
+    return JSONResponse(status_code=200, content=data)
 
 
 @router.post("", summary="Input Tagihan Pelanggan")
@@ -82,7 +82,7 @@ async def edit_tagihan(
     repo: Annotated[TagihanRepository, Depends(TagihanRepository)],
     sqids: Annotated[SqidsManager, Depends(SqidsManager)],
 ):
-    repo.update(db, sqids.decode(id), req, sqids)
+    repo.update(db, sqids.decode(id.split("_")[-1]), req, sqids)
     return JSONResponse(status_code=200, content={"message": "updated successfully"})
 
 
@@ -94,7 +94,7 @@ async def delete_tagihan(
     repo: Annotated[TagihanRepository, Depends(TagihanRepository)],
     sqids: Annotated[SqidsManager, Depends(SqidsManager)],
 ):
-    repo.delete(sqids.decode(id), db)
+    repo.delete(sqids.decode(id.split("_")[-1]), db)
     return JSONResponse(status_code=200, content={"message": "deleted successfully"})
 
 

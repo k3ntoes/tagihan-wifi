@@ -1,6 +1,7 @@
 from duckdb import DuckDBPyConnection
 from fastapi import HTTPException
 
+from app.core.config import LOGGER
 from app.core.pagination import FilterType, PaginationHandler
 from app.models.pelanggan import (
     PelangganModel,
@@ -8,20 +9,17 @@ from app.models.pelanggan import (
     PelangganPostRequest,
     PelangganRequest,
 )
-from app.core.config import LOGGER
-
 
 class PelangganRepository:
     def __init__(self):
         self.base_select = """
                            SELECT p.*,
-                                  pk.nama       as nama_paket,
-                                  pk.harga,
-                                  pk.kecepatan,
-                                  pk.created_at as paket_created_at,
-                                  pk.updated_at as paket_updated_at
-                           FROM pelanggan p
-                                    JOIN paket pk ON p.paket_id = pk.id \
+                                pk.nama       as nama_paket,
+                                pk.harga,
+                                pk.kecepatan,
+                                pk.created_at as paket_created_at,
+                                pk.updated_at as paket_updated_at
+                           FROM pelanggan p JOIN paket pk ON p.paket_id = pk.id
                            """
         self.pelanggan_model_helper = PelangganModelHelper()
 
@@ -63,10 +61,13 @@ class PelangganRepository:
         """Get a single pelanggan by ID with associated paket data."""
         try:
             query = self.base_select + "WHERE p.id = ?"
-            row = db.execute(query, (id,)).fetchone()
+            cursor: DuckDBPyConnection = db.cursor()
+            row = cursor.execute(query, (id,)).fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Pelanggan not found")
-            return self.pelanggan_model_helper.map_from_tuple(row)
+            columns=[desc[0] for desc in cursor.description]
+            row=dict(zip(columns,row))
+            return self.pelanggan_model_helper.map_to_model(row)
         except HTTPException as e:
             raise e
         except Exception as e:
