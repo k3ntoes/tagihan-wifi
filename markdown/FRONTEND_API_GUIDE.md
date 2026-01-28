@@ -305,25 +305,54 @@ interface TokenResponse {
 }
 ```
 
+### Package Models
+
+```typescript
+interface Package {
+  id: string;             // sqid string (URL-safe)
+  name: string;
+  speed: number;          // Speed in Mbps
+  price: number;          // Price in Rupiah
+  is_active: boolean;
+  created_at: string;     // ISO datetime
+  updated_at: string;     // ISO datetime
+}
+
+interface PackageCreate {
+  name: string;           // min 1 char, max 100 chars
+  speed: number;          // must be > 0
+  price: number;          // must be > 0
+}
+
+interface PackageUpdate {
+  name?: string;          // optional
+  speed?: number;         // optional, must be > 0 if provided
+  price?: number;         // optional, must be > 0 if provided
+}
+```
+
 ### Customer Models
 
 ```typescript
 interface Customer {
-  id: number;
-  sqid: string;           // Encoded ID for URLs
+  id: string;             // sqid string (URL-safe)
   name: string;
-  monthly_fee: number;    // In smallest currency unit (e.g., cents/rupiah)
+  package_id: string | null;      // sqid of assigned package
+  package_name: string | null;    // name of assigned package
+  monthly_fee: number;    // In Rupiah
   created_at: string;     // ISO datetime
   updated_at: string;     // ISO datetime
 }
 
 interface CustomerCreate {
   name: string;           // min 1 char, max 100 chars
+  package_id?: string;    // optional, sqid of package
   monthly_fee: number;    // must be > 0
 }
 
 interface CustomerUpdate {
   name?: string;          // optional
+  package_id?: string;    // optional, sqid of package
   monthly_fee?: number;   // optional, must be > 0 if provided
 }
 ```
@@ -332,8 +361,8 @@ interface CustomerUpdate {
 
 ```typescript
 interface Payment {
-  id: number;
-  customer_id: number;
+  id: string;                // sqid string (URL-safe)
+  customer_id: string;       // sqid string
   payment_date: string;      // ISO date (YYYY-MM-DD)
   billing_month: number;     // 1-12
   billing_year: number;      // 2020-2099
@@ -343,8 +372,8 @@ interface Payment {
 }
 
 interface PaymentCreate {
-  customer_id?: number;      // Either customer_id or customer_sqid required
-  customer_sqid?: string;    // Either customer_id or customer_sqid required
+  customer_id?: string;      // sqid string (preferred)
+  customer_sqid?: string;    // Deprecated, use customer_id instead
   payment_date: string;      // ISO date (YYYY-MM-DD)
   billing_month: number;     // 1-12
   billing_year: number;      // 2020-2099
@@ -368,8 +397,7 @@ interface PaymentByMonth {
 }
 
 interface BillingMatrixRow {
-  customer_id: number;
-  customer_sqid: string;
+  customer_id: string;       // sqid string
   customer_name: string;
   monthly_fee: number;
   payments: PaymentByMonth[];  // Array of 12 months
@@ -381,7 +409,8 @@ interface BillingMatrixRow {
 interface BillingMatrixResponse {
   year: number;
   month_names: string[];     // Array of 12 month names
-  rows: BillingMatrixRow[];
+  data: BillingMatrixRow[];  // Changed from 'rows' to 'data'
+  meta: PaginationMeta;
 }
 
 interface BillingSummary {
@@ -392,6 +421,29 @@ interface BillingSummary {
   pending: number;
   completion_percentage: number;  // 0-100
 }
+```
+
+### Pagination Models
+
+```typescript
+interface PaginationMeta {
+  total: number;           // Total number of items
+  page: number;            // Current page number (1-indexed)
+  per_page: number;        // Items per page
+  total_pages: number;     // Total number of pages
+  has_next: boolean;       // Whether there's a next page
+  has_prev: boolean;       // Whether there's a previous page
+}
+
+interface PaginatedResponse<T> {
+  data: T[];               // Array of items
+  meta: PaginationMeta;    // Pagination metadata
+}
+
+// Specific paginated response types
+type PaginatedPackages = PaginatedResponse<Package>;
+type PaginatedCustomers = PaginatedResponse<Customer>;
+type PaginatedPayments = PaginatedResponse<Payment>;
 ```
 
 ### Error Response
@@ -434,6 +486,59 @@ Auth: Required
 
 ---
 
+### Package Endpoints
+
+#### Create Package
+```typescript
+POST /api/v1/packages
+Body: PackageCreate
+Response: Package (201 Created)
+Auth: Required (Admin only)
+```
+
+#### List Packages
+```typescript
+GET /api/v1/packages
+Query Parameters:
+  - page (optional): Page number (default: 1)
+  - per_page (optional): Items per page, max 100 (default: 10)
+  - name (optional): Filter by name (partial match)
+  - min_speed (optional): Filter by minimum speed (Mbps)
+  - max_speed (optional): Filter by maximum speed (Mbps)
+  - min_price (optional): Filter by minimum price
+  - max_price (optional): Filter by maximum price
+  - include_inactive (optional): Include inactive packages (default: false)
+Response: PaginatedPackages (200 OK)
+Auth: Required
+```
+
+#### Get Package by ID
+```typescript
+GET /api/v1/packages/{id}
+Response: Package (200 OK)
+Auth: Required
+Errors: 404 if not found
+```
+
+#### Update Package
+```typescript
+PUT /api/v1/packages/{id}
+Body: PackageUpdate
+Response: Package (200 OK)
+Auth: Required (Admin only)
+Errors: 404 if not found, 400 if name already exists
+```
+
+#### Delete Package
+```typescript
+DELETE /api/v1/packages/{id}
+Response: 204 No Content
+Auth: Required (Admin only)
+Errors: 404 if not found, 400 if package in use
+```
+
+---
+
 ### Customer Endpoints
 
 #### Create Customer
@@ -447,13 +552,18 @@ Auth: Required (Admin only)
 #### List Customers
 ```typescript
 GET /api/v1/customers
-Response: Customer[] (200 OK)
+Query Parameters:
+  - page (optional): Page number (default: 1)
+  - per_page (optional): Items per page, max 100 (default: 10)
+  - name (optional): Filter by name (partial match)
+  - package_id (optional): Filter by package ID (sqid)
+Response: PaginatedCustomers (200 OK)
 Auth: Required
 ```
 
-#### Get Customer by Sqid
+#### Get Customer by ID
 ```typescript
-GET /api/v1/customers/{sqid}
+GET /api/v1/customers/{id}
 Response: Customer (200 OK)
 Auth: Required
 Errors: 404 if not found
@@ -461,17 +571,17 @@ Errors: 404 if not found
 
 #### Update Customer
 ```typescript
-PATCH /api/v1/customers/{sqid}
+PATCH /api/v1/customers/{id}
 Body: CustomerUpdate
 Response: Customer (200 OK)
 Auth: Required (Admin only)
-Errors: 404 if not found
+Errors: 404 if not found, 400 if invalid package_id
 ```
 
 #### Delete Customer
 ```typescript
-DELETE /api/v1/customers/{sqid}
-Response: { message: string, sqid: string } (200 OK)
+DELETE /api/v1/customers/{id}
+Response: 204 No Content
 Auth: Required (Admin only)
 Errors: 404 if not found
 ```
@@ -494,13 +604,15 @@ Errors:
 
 #### List Payments
 ```typescript
-GET /api/v1/payments?customer_sqid={sqid}&year={year}&month={month}
+GET /api/v1/payments
 Query Parameters:
-  - customer_sqid (optional): Filter by customer sqid
-  - customer_id (optional): Filter by customer ID
+  - page (optional): Page number (default: 1)
+  - per_page (optional): Items per page, max 100 (default: 10)
+  - customer_id (optional): Filter by customer ID (sqid)
+  - customer_sqid (optional): Deprecated, use customer_id
   - year (optional): Filter by billing year
   - month (optional): Filter by billing month (1-12)
-Response: Payment[] (200 OK)
+Response: PaginatedPayments (200 OK)
 Auth: Required
 ```
 
@@ -524,6 +636,11 @@ Errors:
 GET /api/v1/billing-matrix/{year}
 Path Parameters:
   - year: 2020-2100
+Query Parameters:
+  - page (optional): Page number (default: 1)
+  - per_page (optional): Items per page, max 100 (default: 10)
+  - customer_id (optional): Filter by customer ID (sqid)
+  - customer_name (optional): Filter by customer name (partial match)
 Response: BillingMatrixResponse (200 OK)
 Auth: Required
 ```
@@ -661,10 +778,9 @@ function isAdmin(user: User): boolean {
 ### 2. Customer Management
 
 ```typescript
-// Always use sqid for URLs
+// Use the id field (which contains sqid) for URLs
 function navigateToCustomer(customer: Customer) {
-  router.push(`/customers/${customer.sqid}`);  // ✅ Correct
-  // NOT: `/customers/${customer.id}`  ❌ Wrong
+  router.push(`/customers/${customer.id}`);  // ✅ Correct (id is sqid)
 }
 
 // Display customer name and monthly fee
@@ -674,15 +790,22 @@ function formatMonthlyFee(amount: number): string {
     currency: 'IDR'
   }).format(amount);
 }
+
+// When assigning package to customer
+function assignPackage(customerId: string, packageId: string) {
+  return api.patch(`/customers/${customerId}`, {
+    package_id: packageId  // Use sqid string
+  });
+}
 ```
 
 ### 3. Payment Recording
 
 ```typescript
-// Use customer_sqid from UI
-async function recordPayment(customerSqid: string, date: Date, amount: number) {
+// Use customer_id (which is sqid) from UI
+async function recordPayment(customerId: string, date: Date, amount: number) {
   const paymentData: PaymentCreate = {
-    customer_sqid: customerSqid,
+    customer_id: customerId,  // sqid string
     payment_date: date.toISOString().split('T')[0],  // YYYY-MM-DD
     billing_month: date.getMonth() + 1,  // 1-12
     billing_year: date.getFullYear(),
@@ -694,7 +817,7 @@ async function recordPayment(customerSqid: string, date: Date, amount: number) {
 
 // Handle duplicate payment error
 try {
-  await recordPayment(sqid, new Date(), 150000);
+  await recordPayment(customerId, new Date(), 150000);
 } catch (error) {
   if (error.response?.status === 409) {
     // Show message: "Payment for this month already exists"
@@ -706,45 +829,68 @@ try {
 ### 4. Billing Matrix Display
 
 ```typescript
-// Render billing matrix
+// Render billing matrix with pagination
 function BillingMatrixTable({ year }: { year: number }) {
   const [matrix, setMatrix] = useState<BillingMatrixResponse | null>(null);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
   
   useEffect(() => {
-    api.get(`/billing-matrix/${year}`)
+    setLoading(true);
+    api.get(`/billing-matrix/${year}?page=${page}&per_page=10`)
       .then(setMatrix)
-      .catch(console.error);
-  }, [year]);
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [year, page]);
   
-  if (!matrix) return <Loading />;
+  if (loading || !matrix) return <Loading />;
   
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Customer</th>
-          {matrix.month_names.map(month => (
-            <th key={month}>{month}</th>
-          ))}
-          <th>Total</th>
-          <th>%</th>
-        </tr>
-      </thead>
-      <tbody>
-        {matrix.rows.map(row => (
-          <tr key={row.customer_sqid}>
-            <td>{row.customer_name}</td>
-            {row.payments.map(payment => (
-              <td key={payment.month} className={payment.paid ? 'paid' : 'unpaid'}>
-                {payment.paid ? '✓' : '✗'}
-              </td>
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            {matrix.month_names.map(month => (
+              <th key={month}>{month.substring(0, 3)}</th>
             ))}
-            <td>{formatCurrency(row.total_paid)}</td>
-            <td>{row.completion_percentage.toFixed(1)}%</td>
+            <th>Total</th>
+            <th>%</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {matrix.data.map(row => (
+            <tr key={row.customer_id}>
+              <td>{row.customer_name}</td>
+              {row.payments.map(payment => (
+                <td key={payment.month} className={payment.paid ? 'paid' : 'unpaid'}>
+                  {payment.paid ? '✓' : '✗'}
+                </td>
+              ))}
+              <td>{formatCurrency(row.total_paid)}</td>
+              <td>{row.completion_percentage.toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      
+      {/* Pagination controls */}
+      <div className="pagination">
+        <button 
+          onClick={() => setPage(p => p - 1)} 
+          disabled={!matrix.meta.has_prev}
+        >
+          Previous
+        </button>
+        <span>Page {matrix.meta.page} of {matrix.meta.total_pages}</span>
+        <button 
+          onClick={() => setPage(p => p + 1)} 
+          disabled={!matrix.meta.has_next}
+        >
+          Next
+        </button>
+      </div>
+    </div>
   );
 }
 ```
@@ -773,7 +919,44 @@ function formatDateForDisplay(dateString: string): string {
 }
 ```
 
-### 6. Loading States
+### 6. Pagination Handling
+
+```typescript
+// Track pagination state
+const [data, setData] = useState([]);
+const [meta, setMeta] = useState<PaginationMeta | null>(null);
+const [page, setPage] = useState(1);
+const [perPage, setPerPage] = useState(10);
+
+async function loadData() {
+  const response = await api.get(`/customers?page=${page}&per_page=${perPage}`);
+  setData(response.data);
+  setMeta(response.meta);
+}
+
+// Pagination controls
+function PaginationControls() {
+  return (
+    <div>
+      <button 
+        onClick={() => setPage(p => p - 1)} 
+        disabled={!meta?.has_prev}
+      >
+        Previous
+      </button>
+      <span>{meta?.page} / {meta?.total_pages} ({meta?.total} items)</span>
+      <button 
+        onClick={() => setPage(p => p + 1)} 
+        disabled={!meta?.has_next}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+```
+
+### 7. Loading States
 
 ```typescript
 // Track loading state
@@ -785,8 +968,8 @@ async function loadCustomers() {
   setError(null);
   
   try {
-    const customers = await api.get('/customers');
-    setCustomers(customers);
+    const response = await api.get('/customers');
+    setCustomers(response.data);  // Access data field
   } catch (err) {
     setError(err.message);
   } finally {
@@ -806,29 +989,42 @@ import React, { useState, useEffect } from 'react';
 import { api } from './api-client';
 
 interface Customer {
-  id: number;
-  sqid: string;
+  id: string;             // sqid
   name: string;
+  package_id: string | null;
+  package_name: string | null;
   monthly_fee: number;
   created_at: string;
   updated_at: string;
 }
 
+interface PaginationMeta {
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
 function CustomerList() {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadCustomers();
-  }, []);
+  }, [page]);
 
   async function loadCustomers() {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.get('/customers');
-      setCustomers(data);
+      const response = await api.get(`/customers?page=${page}&per_page=10`);
+      setCustomers(response.data);
+      setMeta(response.meta);
     } catch (err: any) {
       setError(err.message || 'Failed to load customers');
     } finally {
@@ -836,13 +1032,13 @@ function CustomerList() {
     }
   }
 
-  async function deleteCustomer(sqid: string) {
+  async function deleteCustomer(id: string) {
     if (!confirm('Are you sure you want to delete this customer?')) {
       return;
     }
 
     try {
-      await api.delete(`/customers/${sqid}`);
+      await api.delete(`/customers/${id}`);
       await loadCustomers(); // Reload list
     } catch (err: any) {
       alert(`Failed to delete customer: ${err.message}`);
@@ -859,14 +1055,16 @@ function CustomerList() {
         <thead>
           <tr>
             <th>Name</th>
+            <th>Package</th>
             <th>Monthly Fee</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {customers.map(customer => (
-            <tr key={customer.sqid}>
+            <tr key={customer.id}>
               <td>{customer.name}</td>
+              <td>{customer.package_name || '-'}</td>
               <td>
                 {new Intl.NumberFormat('id-ID', {
                   style: 'currency',
@@ -875,11 +1073,11 @@ function CustomerList() {
               </td>
               <td>
                 <button onClick={() => {
-                  window.location.href = `/customers/${customer.sqid}`;
+                  window.location.href = `/customers/${customer.id}`;
                 }}>
                   View
                 </button>
-                <button onClick={() => deleteCustomer(customer.sqid)}>
+                <button onClick={() => deleteCustomer(customer.id)}>
                   Delete
                 </button>
               </td>
@@ -887,6 +1085,25 @@ function CustomerList() {
           ))}
         </tbody>
       </table>
+      
+      {/* Pagination */}
+      {meta && (
+        <div className="pagination">
+          <button 
+            onClick={() => setPage(p => p - 1)} 
+            disabled={!meta.has_prev}
+          >
+            Previous
+          </button>
+          <span>Page {meta.page} of {meta.total_pages} ({meta.total} total)</span>
+          <button 
+            onClick={() => setPage(p => p + 1)} 
+            disabled={!meta.has_next}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -917,7 +1134,7 @@ export default CustomerList;
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in matrix?.rows" :key="row.customer_sqid">
+          <tr v-for="row in matrix?.data" :key="row.customer_id">
             <td>{{ row.customer_name }}</td>
             <td 
               v-for="payment in row.payments" 
@@ -931,6 +1148,13 @@ export default CustomerList;
           </tr>
         </tbody>
       </table>
+      
+      <!-- Pagination -->
+      <div v-if="matrix?.meta" class="pagination">
+        <button @click="page--" :disabled="!matrix.meta.has_prev">Previous</button>
+        <span>Page {{ matrix.meta.page }} of {{ matrix.meta.total_pages }}</span>
+        <button @click="page++" :disabled="!matrix.meta.has_next">Next</button>
+      </div>
     </div>
   </div>
 </template>
@@ -942,26 +1166,39 @@ import { api } from './api-client';
 interface BillingMatrixResponse {
   year: number;
   month_names: string[];
-  rows: any[];
+  data: any[];
+  meta: PaginationMeta;
+}
+
+interface PaginationMeta {
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 const props = defineProps<{ year: number }>();
 
 const matrix = ref<BillingMatrixResponse | null>(null);
+const page = ref(1);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-onMounted(async () => {
+watch([() => props.year, page], async () => {
   try {
     loading.value = true;
     error.value = null;
-    matrix.value = await api.get(`/billing-matrix/${props.year}`);
+    matrix.value = await api.get(
+      `/billing-matrix/${props.year}?page=${page.value}&per_page=10`
+    );
   } catch (err: any) {
     error.value = err.message;
   } finally {
     loading.value = false;
   }
-});
+}, { immediate: true });
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('id-ID', {
@@ -1009,7 +1246,7 @@ interface PaymentFormProps {
 function PaymentForm({ onSuccess }: PaymentFormProps) {
   const [customers, setCustomers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
-    customer_sqid: '',
+    customer_id: '',
     payment_date: new Date().toISOString().split('T')[0],
     billing_month: new Date().getMonth() + 1,
     billing_year: new Date().getFullYear(),
@@ -1047,11 +1284,11 @@ function PaymentForm({ onSuccess }: PaymentFormProps) {
     }
   }
 
-  function handleCustomerChange(sqid: string) {
-    const customer = customers.find(c => c.sqid === sqid);
+  function handleCustomerChange(id: string) {
+    const customer = customers.find(c => c.id === id);
     setFormData({
       ...formData,
-      customer_sqid: sqid,
+      customer_id: id,
       amount: customer?.monthly_fee || 0
     });
   }
@@ -1065,13 +1302,13 @@ function PaymentForm({ onSuccess }: PaymentFormProps) {
       <div>
         <label>Customer:</label>
         <select
-          value={formData.customer_sqid}
+          value={formData.customer_id}
           onChange={(e) => handleCustomerChange(e.target.value)}
           required
         >
           <option value="">Select customer</option>
           {customers.map(customer => (
-            <option key={customer.sqid} value={customer.sqid}>
+            <option key={customer.id} value={customer.id}>
               {customer.name} - Rp {customer.monthly_fee.toLocaleString()}
             </option>
           ))}

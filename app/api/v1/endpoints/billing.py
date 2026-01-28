@@ -2,29 +2,42 @@
 Billing matrix API endpoints for viewing annual payment status.
 
 Endpoints:
-- GET /billing-matrix/{year} - Get annual billing matrix for all customers
+- GET /billing-matrix/{year} - Get annual billing matrix for all customers (paginated)
 """
 
 import calendar
+from typing import Optional
 
-from fastapi import APIRouter, Depends, status, HTTPException, Path
+from fastapi import APIRouter, Depends, status, HTTPException, Path, Query
 
 from app.core.auth import get_current_user
 from app.db.database import Database, get_db
-from app.schemas import BillingMatrixResponse, BillingMatrixRow, PaymentByMonth
+from app.schemas import BillingMatrixRow, PaymentByMonth, PaginatedBillingMatrixResponse, PaginationMeta
 from app.utils.sqids_helper import get_sqids_helper
 
 router = APIRouter(prefix="/billing-matrix", tags=["billing"])
 
 
-@router.get("/{year}", response_model=BillingMatrixResponse)
+@router.get("/{year}", response_model=PaginatedBillingMatrixResponse)
 async def get_billing_matrix(
     year: int = Path(..., ge=2020, le=2100, description="Billing year"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    customer_id: Optional[str] = Query(None, description="Filter by specific customer ID (sqid)"),
+    customer_name: Optional[str] = Query(None, description="Filter by customer name (partial match)"),
     db: Database = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Get annual billing matrix for all active customers.
+    Get annual billing matrix for all active customers with pagination.
+
+    Supports filtering by:
+    - customer_id: Show only specific customer (sqid format)
+    - customer_name: Filter by customer name (partial match, case-insensitive)
+
+    Pagination:
+    - page: Page number (default: 1)
+    - per_page: Items per page (default: 10, max: 100)
 
     Returns a matrix showing payment status for all 12 months of the specified year.
     Each row shows:
@@ -35,31 +48,89 @@ async def get_billing_matrix(
     try:
         sqids_helper = get_sqids_helper()
 
-        # Get all active customers
-        customers = db.conn.execute(
-            """
+        # Build query with filters
+        query = """
             SELECT id, name, monthly_fee
             FROM customers
             WHERE is_active = true
-            ORDER BY name ASC
-            """
-        ).fetchall()
+        """
+        params = []
+        
+        # Add customer_id filter
+        if customer_id and customer_id.strip():
+            try:
+                actual_customer_id, model = sqids_helper.decode_with_prefix(customer_id)
+                if model != 'customer':
+                    raise ValueError("Not a customer ID")
+                query += " AND id = ?"
+                params.append(actual_customer_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid customer ID: {customer_id}",
+                )
+        
+        # Add customer_name filter
+        if customer_name and customer_name.strip():
+            query += " AND LOWER(name) LIKE LOWER(?)"
+            params.append(f"%{customer_name.strip()}%")
+        
+        # Get total count for pagination
+        count_query = "SELECT COUNT(*) FROM customers WHERE is_active = true"
+        count_params = []
+        
+        if customer_id and customer_id.strip():
+            try:
+                actual_customer_id, model = sqids_helper.decode_with_prefix(customer_id)
+                if model != 'customer':
+                    raise ValueError("Not a customer ID")
+                count_query += " AND id = ?"
+                count_params.append(actual_customer_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid customer ID: {customer_id}",
+                )
+        
+        if customer_name and customer_name.strip():
+            count_query += " AND LOWER(name) LIKE LOWER(?)"
+            count_params.append(f"%{customer_name.strip()}%")
+        
+        total = db.conn.execute(count_query, count_params).fetchone()[0]
+        
+        # Calculate pagination
+        offset = (page - 1) * per_page
+        total_pages = (total + per_page - 1) // per_page
+        
+        query += " ORDER BY name ASC LIMIT ? OFFSET ?"
+        params.extend([per_page, offset])
+        
+        # Get paginated customers
+        customers = db.conn.execute(query, params).fetchall()
 
         if not customers:
-            return BillingMatrixResponse(
+            return PaginatedBillingMatrixResponse(
                 year=year,
                 month_names=list(calendar.month_name)[1:],
-                rows=[],
+                data=[],
+                meta=PaginationMeta(
+                    total=total,
+                    page=page,
+                    per_page=per_page,
+                    total_pages=total_pages,
+                    has_next=page < total_pages,
+                    has_prev=page > 1,
+                ),
             )
 
         # Build matrix rows
         rows = []
 
         for customer in customers:
-            customer_id, name, monthly_fee = customer
+            customer_id_val, name, monthly_fee = customer
             
-            # Generate sqid on-the-fly
-            customer_sqid = sqids_helper.encode_single(customer_id)
+            # Generate sqid on-the-fly with Laravel-style prefix
+            customer_sqid = sqids_helper.encode_with_prefix(customer_id_val, 'customer')
 
             # Get all payments for this customer in the specified year
             payments = db.conn.execute(
@@ -69,7 +140,7 @@ async def get_billing_matrix(
                 WHERE customer_id = ? AND billing_year = ?
                 ORDER BY billing_month ASC
                 """,
-                [customer_id, year],
+                [customer_id_val, year],
             ).fetchall()
 
             # Create payment map for quick lookup
@@ -120,7 +191,7 @@ async def get_billing_matrix(
 
             # Create matrix row
             row = BillingMatrixRow(
-                customer_sqid=customer_sqid,
+                customer_id=customer_sqid,
                 customer_name=name,
                 monthly_fee=monthly_fee,
                 payments=payments_by_month,
@@ -131,10 +202,20 @@ async def get_billing_matrix(
 
             rows.append(row)
 
-        return BillingMatrixResponse(
+        meta = PaginationMeta(
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1,
+        )
+
+        return PaginatedBillingMatrixResponse(
             year=year,
             month_names=list(calendar.month_name)[1:],
-            rows=rows,
+            data=rows,
+            meta=meta,
         )
 
     except Exception as e:

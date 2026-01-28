@@ -10,11 +10,24 @@ A FastAPI-based backend system for managing WiFi billing with customer managemen
   - Secure password hashing with bcrypt
   - 24-hour token expiration
 
+- **Package Management**
+  - Create, read, update, and delete internet packages (admin only)
+  - Track package speed (Mbps) and price
+  - Link customers to packages via foreign key
+  - Soft delete with `is_active` flag
+  - Prevent deletion of packages assigned to active customers
+  - Advanced filtering: name, speed range, price range
+  - Pagination support (10 items per page by default, max 100)
+
 - **Customer Management**
   - Create, read, update, and delete customers (admin only)
+  - Optional package assignment for customers (referenced by sqid)
   - Track monthly fees per customer
-  - Sqids-encoded customer IDs for URL-safe references
+  - Sqids-encoded IDs in `id` field for URL-safe references
   - Soft delete with `is_active` flag
+  - View customer with their assigned package information
+  - Advanced filtering: name, package_id
+  - Pagination support with metadata
 
 - **Payment Processing**
   - Record individual payments with billing month and year (admin only)
@@ -22,6 +35,7 @@ A FastAPI-based backend system for managing WiFi billing with customer managemen
   - Prevent duplicate payments for the same month/year via unique constraint
   - Track payment dates and amounts
   - Filter payments by customer, year, or month
+  - Pagination support with sorting
 
 - **Billing Matrix**
   - View annual payment status for all customers
@@ -29,6 +43,8 @@ A FastAPI-based backend system for managing WiFi billing with customer managemen
   - Track total paid vs expected amount per customer
   - Calculate completion percentage
   - Summary endpoint with overall statistics
+  - Filter by customer ID or name
+  - Pagination support for large customer lists
 
 - **Database**
   - DuckDB for lightweight but powerful relational storage
@@ -186,6 +202,147 @@ Authorization: Bearer {access_token}
 
 ---
 
+### Package Management
+
+#### Create Package (Admin only)
+```http
+POST /api/v1/packages
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "name": "Premium 100Mbps",
+  "speed": 100,
+  "price": 300000
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "abc123xyz",
+  "name": "Premium 100Mbps",
+  "speed": 100,
+  "price": 300000,
+  "is_active": true,
+  "created_at": "2026-01-28T10:30:00",
+  "updated_at": "2026-01-28T10:30:00"
+}
+```
+
+**Note:** `id` is a sqid (string), not an integer.
+
+#### List All Packages
+```http
+GET /api/v1/packages
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1)
+- `per_page` (integer, optional): Items per page, max 100 (default: 10)
+- `name` (string, optional): Filter by package name (partial match)
+- `min_speed` (integer, optional): Filter by minimum speed (Mbps)
+- `max_speed` (integer, optional): Filter by maximum speed (Mbps)
+- `min_price` (integer, optional): Filter by minimum price
+- `max_price` (integer, optional): Filter by maximum price
+- `include_inactive` (boolean, optional): Include inactive packages (default: false)
+
+**Response (200 OK):**
+```json
+{
+  "data": [
+    {
+      "id": "abc123xyz",
+      "name": "Basic 10Mbps",
+      "speed": 10,
+      "price": 100000,
+      "is_active": true,
+      "created_at": "2026-01-28T10:30:00",
+      "updated_at": "2026-01-28T10:30:00"
+    },
+    {
+      "id": "def456uvw",
+      "name": "Standard 50Mbps",
+      "speed": 50,
+      "price": 200000,
+      "is_active": true,
+      "created_at": "2026-01-28T10:30:00",
+      "updated_at": "2026-01-28T10:30:00"
+    }
+  ],
+  "meta": {
+    "total": 50,
+    "page": 1,
+    "per_page": 10,
+    "total_pages": 5,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
+
+#### Get Package by ID
+```http
+GET /api/v1/packages/{id}
+Authorization: Bearer {access_token}
+```
+
+**Note:** `{id}` is the sqid string (e.g., `abc123xyz`)
+
+**Response (200 OK):**
+```json
+{
+  "id": "abc123xyz",
+  "name": "Premium 100Mbps",
+  "speed": 100,
+  "price": 300000,
+  "is_active": true,
+  "created_at": "2026-01-28T10:30:00",
+  "updated_at": "2026-01-28T10:30:00"
+}
+```
+
+#### Update Package (Admin only)
+```http
+PUT /api/v1/packages/{id}
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "name": "Premium 100Mbps Plus",
+  "speed": 150,
+  "price": 350000
+}
+```
+
+**Note:** `{id}` is the sqid string
+
+**Response (200 OK):**
+```json
+{
+  "id": "abc123xyz",
+  "name": "Premium 100Mbps Plus",
+  "speed": 150,
+  "price": 350000,
+  "is_active": true,
+  "created_at": "2026-01-28T10:30:00",
+  "updated_at": "2026-01-28T11:00:00"
+}
+```
+
+#### Delete Package (Admin only)
+```http
+DELETE /api/v1/packages/{id}
+Authorization: Bearer {access_token}
+```
+
+**Note:** Soft delete (sets `is_active` to false). Cannot delete packages that are currently assigned to active customers.
+
+**Response (204 No Content)**
+
+---
+
 ### Customer Management
 
 #### Create Customer (Admin only)
@@ -196,16 +353,20 @@ Content-Type: application/json
 
 {
   "name": "Opi",
+  "package_id": "abc123xyz",
   "monthly_fee": 150000
 }
 ```
 
+**Note:** `package_id` is optional. If provided, it must be a package sqid string.
+
 **Response (201 Created):**
 ```json
 {
-  "id": 1,
-  "sqid": "abc123",
+  "id": "cust789abc",
   "name": "Opi",
+  "package_id": "abc123xyz",
+  "package_name": "Basic 10Mbps",
   "monthly_fee": 150000,
   "created_at": "2026-01-28T10:30:00",
   "updated_at": "2026-01-28T10:30:00"
@@ -218,32 +379,52 @@ GET /api/v1/customers
 Authorization: Bearer {access_token}
 ```
 
-**Response (200 OK):**
-```json
-[
-  {
-    "id": 1,
-    "sqid": "abc123",
-    "name": "Opi",
-    "monthly_fee": 150000,
-    "created_at": "2026-01-28T10:30:00",
-    "updated_at": "2026-01-28T10:30:00"
-  }
-]
-```
-
-#### Get Customer by Sqid
-```http
-GET /api/v1/customers/{sqid}
-Authorization: Bearer {access_token}
-```
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1)
+- `per_page` (integer, optional): Items per page, max 100 (default: 10)
+- `name` (string, optional): Filter by customer name (partial match)
+- `package_id` (string, optional): Filter by package ID (sqid)
 
 **Response (200 OK):**
 ```json
 {
-  "id": 1,
-  "sqid": "abc123",
+  "data": [
+    {
+      "id": "cust789abc",
+      "name": "Opi",
+      "package_id": "abc123xyz",
+      "package_name": "Basic 10Mbps",
+      "monthly_fee": 150000,
+      "created_at": "2026-01-28T10:30:00",
+      "updated_at": "2026-01-28T10:30:00"
+    }
+  ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "per_page": 10,
+    "total_pages": 10,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
+
+#### Get Customer by ID
+```http
+GET /api/v1/customers/{customer_id}
+Authorization: Bearer {access_token}
+```
+
+**Note:** `{customer_id}` is the sqid string (e.g., `cust789abc`)
+
+**Response (200 OK):**
+```json
+{
+  "id": "cust789abc",
   "name": "Opi",
+  "package_id": "abc123xyz",
+  "package_name": "Basic 10Mbps",
   "monthly_fee": 150000,
   "created_at": "2026-01-28T10:30:00",
   "updated_at": "2026-01-28T10:30:00"
@@ -252,22 +433,26 @@ Authorization: Bearer {access_token}
 
 #### Update Customer (Admin only)
 ```http
-PATCH /api/v1/customers/{sqid}
+PATCH /api/v1/customers/{customer_id}
 Authorization: Bearer {access_token}
 Content-Type: application/json
 
 {
   "name": "Opi Updated",
+  "package_id": "def456uvw",
   "monthly_fee": 175000
 }
 ```
 
+**Note:** All fields are optional. Only provided fields will be updated. `package_id` must be a sqid string.
+
 **Response (200 OK):**
 ```json
 {
-  "id": 1,
-  "sqid": "abc123",
+  "id": "cust789abc",
   "name": "Opi Updated",
+  "package_id": "def456uvw",
+  "package_name": "Standard 50Mbps",
   "monthly_fee": 175000,
   "created_at": "2026-01-28T10:30:00",
   "updated_at": "2026-01-28T11:00:00"
@@ -276,17 +461,13 @@ Content-Type: application/json
 
 #### Delete Customer (Admin only)
 ```http
-DELETE /api/v1/customers/{sqid}
+DELETE /api/v1/customers/{customer_id}
 Authorization: Bearer {access_token}
 ```
 
-**Response (200 OK):**
-```json
-{
-  "message": "Customer deleted successfully",
-  "sqid": "abc123"
-}
-```
+**Note:** Soft delete (sets `is_active` to false)
+
+**Response (204 No Content)**
 
 ---
 
@@ -299,7 +480,7 @@ Authorization: Bearer {access_token}
 Content-Type: application/json
 
 {
-  "customer_sqid": "abc123",
+  "customer_id": "cust789abc",
   "payment_date": "2026-01-15",
   "billing_month": 1,
   "billing_year": 2026,
@@ -307,22 +488,13 @@ Content-Type: application/json
 }
 ```
 
-**Alternative (using customer_id):**
-```json
-{
-  "customer_id": 1,
-  "payment_date": "2026-01-15",
-  "billing_month": 1,
-  "billing_year": 2026,
-  "amount": 150000
-}
-```
+**Note:** `customer_id` must be a sqid string. `customer_sqid` is deprecated but still supported for backward compatibility.
 
 **Response (201 Created):**
 ```json
 {
-  "id": 1,
-  "customer_id": 1,
+  "id": "pay123xyz",
+  "customer_id": "cust789abc",
   "payment_date": "2026-01-15",
   "billing_month": 1,
   "billing_year": 2026,
@@ -352,8 +524,8 @@ The system will:
 **Response (201 Created):**
 ```json
 {
-  "id": 1,
-  "customer_id": 1,
+  "id": "pay123xyz",
+  "customer_id": "cust789abc",
   "payment_date": "2026-01-15",
   "billing_month": 1,
   "billing_year": 2026,
@@ -368,30 +540,42 @@ The system will:
 GET /api/v1/payments
 Authorization: Bearer {access_token}
 
-# Optional filters:
-GET /api/v1/payments?customer_sqid=abc123&year=2026&month=1
+# With filters and pagination:
+GET /api/v1/payments?customer_id=cust789abc&year=2026&month=1&page=1&per_page=10
 ```
 
 **Query Parameters:**
-- `customer_sqid` (optional): Filter by customer sqid
-- `customer_id` (optional): Filter by customer ID
-- `year` (optional): Filter by billing year
-- `month` (optional): Filter by billing month (1-12)
+- `page` (integer, optional): Page number (default: 1)
+- `per_page` (integer, optional): Items per page, max 100 (default: 10)
+- `customer_id` (string, optional): Filter by customer sqid
+- `customer_sqid` (string, optional): Deprecated, use customer_id instead
+- `year` (integer, optional): Filter by billing year
+- `month` (integer, optional): Filter by billing month (1-12)
 
 **Response (200 OK):**
 ```json
-[
-  {
-    "id": 1,
-    "customer_id": 1,
-    "payment_date": "2026-01-15",
-    "billing_month": 1,
-    "billing_year": 2026,
-    "amount": 150000,
-    "created_at": "2026-01-28T10:30:00",
-    "updated_at": "2026-01-28T10:30:00"
+{
+  "data": [
+    {
+      "id": "pay123xyz",
+      "customer_id": "cust789abc",
+      "payment_date": "2026-01-15",
+      "billing_month": 1,
+      "billing_year": 2026,
+      "amount": 150000,
+      "created_at": "2026-01-28T10:30:00",
+      "updated_at": "2026-01-28T10:30:00"
+    }
+  ],
+  "meta": {
+    "total": 250,
+    "page": 1,
+    "per_page": 10,
+    "total_pages": 25,
+    "has_next": true,
+    "has_prev": false
   }
-]
+}
 ```
 
 ---
@@ -404,17 +588,22 @@ GET /api/v1/billing-matrix/{year}
 Authorization: Bearer {access_token}
 ```
 
-**Example:** `GET /api/v1/billing-matrix/2026`
+**Example:** `GET /api/v1/billing-matrix/2026?page=1&per_page=10`
+
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1)
+- `per_page` (integer, optional): Items per page, max 100 (default: 10)
+- `customer_id` (string, optional): Filter by specific customer ID (sqid)
+- `customer_name` (string, optional): Filter by customer name (partial match)
 
 **Response (200 OK):**
 ```json
 {
   "year": 2026,
   "month_names": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-  "rows": [
+  "data": [
     {
-      "customer_id": 1,
-      "customer_sqid": "abc123",
+      "customer_id": "cust789abc",
       "customer_name": "Opi",
       "monthly_fee": 150000,
       "payments": [
@@ -438,7 +627,15 @@ Authorization: Bearer {access_token}
       "total_expected": 1800000,
       "completion_percentage": 8.33
     }
-  ]
+  ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "per_page": 10,
+    "total_pages": 10,
+    "has_next": true,
+    "has_prev": false
+  }
 }
 ```
 
@@ -466,23 +663,35 @@ Authorization: Bearer {access_token}
 
 ## Data Models
 
-### Customer
-- `id`: Integer (auto-generated)
-- `sqid`: String (unique, auto-generated Sqids encoding)
+### Package (Response)
+- `id`: String (sqid encoding of internal integer ID)
+- `name`: String (package name)
+- `speed`: Integer (speed in Mbps)
+- `price`: Integer (price in Rupiah)
+- `is_active`: Boolean
+- `created_at`: DateTime
+- `updated_at`: DateTime
+
+### Customer (Response)
+- `id`: String (sqid encoding of internal integer ID)
 - `name`: String (customer name)
+- `package_id`: String | null (sqid of assigned package)
+- `package_name`: String | null (name of assigned package)
 - `monthly_fee`: Integer (monthly payment amount)
 - `created_at`: DateTime
 - `updated_at`: DateTime
 
-### Payment
-- `id`: Integer (auto-generated)
-- `customer_id`: Integer (foreign key to Customer)
+### Payment (Response)
+- `id`: String (sqid encoding of internal integer ID)
+- `customer_id`: String (sqid of customer)
 - `payment_date`: Date
 - `billing_month`: Integer (1-12)
 - `billing_year`: Integer
 - `amount`: Integer (payment amount)
 - `created_at`: DateTime
 - `updated_at`: DateTime
+
+**Note:** All `id` fields in API responses are sqid strings for URL-safe references. Database internally uses integer IDs with auto-increment.
 
 ### User
 - `id`: Integer (auto-generated)
@@ -539,7 +748,7 @@ tagihan-wifi/
 │   │   ├── __init__.py
 │   │   └── database.py              # DuckDB connection and schema
 │   ├── schemas/
-│   │   ├── __init__.py              # Pydantic models
+│   │   ├── __init__.py              # Pydantic models (includes pagination schemas)
 │   └── utils/
 │       ├── __init__.py
 │       ├── sqids_helper.py          # Sqids encoding/decoding
@@ -581,11 +790,11 @@ curl -X POST http://localhost:8000/api/v1/customers \
   -H "Content-Type: application/json" \
   -d '{"name": "Opi", "monthly_fee": 150000}'
 
-# Record payment
+# Record payment (get customer_id from previous response)
 curl -X POST http://localhost:8000/api/v1/payments \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"customer_sqid": "abc123", "payment_date": "2026-01-15", "billing_month": 1, "billing_year": 2026, "amount": 150000}'
+  -d '{"customer_id": "cust789abc", "payment_date": "2026-01-15", "billing_month": 1, "billing_year": 2026, "amount": 150000}'
 ```
 
 ---
@@ -631,24 +840,28 @@ For detailed frontend integration guide, see [FRONTEND_API_GUIDE.md](FRONTEND_AP
 - **Auth:** JWT Bearer token in `Authorization` header
 - **Date Format:** ISO 8601 (`YYYY-MM-DD`)
 - **Datetime Format:** ISO 8601 with timezone
-- **Customer ID:** Use `sqid` (string) for URLs, `id` (int) for internal references
+- **IDs:** All resource IDs (packages, customers, payments) use sqid strings in `id` field
+- **References:** Use sqid strings for all ID references (e.g., `customer_id`, `package_id`)
 
 ---
 
 ## Future Enhancements
 
+- [x] Pagination support for all list endpoints
+- [x] Advanced filtering and search
 - [ ] Payment update/edit endpoints (PUT/PATCH)
 - [ ] Payment deletion with audit trail
 - [ ] Batch payment import (CSV/Excel)
 - [ ] Email notifications for payment reminders
 - [ ] SMS notifications integration
-- [ ] Advanced filtering and search
 - [ ] Data export (PDF, Excel, CSV)
 - [ ] Dashboard/statistics endpoints
 - [ ] Audit logging for all operations
 - [ ] Webhooks for payment events
 - [ ] Multi-tenancy support
 - [ ] Payment history and analytics
+- [ ] GraphQL API support
+- [ ] Real-time WebSocket updates
 
 ---
 
@@ -691,6 +904,24 @@ For issues or questions:
 
 ## Version History
 
+### v1.2.0 (2026-01-28)
+- **New Feature:** Pagination support for all list endpoints
+- Added `PaginationMeta` schema with navigation metadata
+- All list endpoints return paginated responses with `data` and `meta`
+- Default page size: 10 items, max: 100 items per page
+- Advanced query filters for packages (speed range, price range)
+- Advanced query filters for customers (name, package_id)
+- Advanced query filters for payments (customer_id, year, month)
+- Billing matrix pagination with customer filters
+
+### v1.1.0 (2026-01-28)
+- **Breaking Change:** All response IDs now use sqid strings in `id` field
+- `customer.sqid` → `customer.id` (now contains sqid string)
+- `payment.sqid` → `payment.id`, `payment.customer_sqid` → `payment.customer_id`
+- All ID parameters in URLs now accept sqid strings
+- `package_id` in requests/responses now use sqid strings
+- Backward compatibility with `customer_sqid` query parameter (deprecated)
+
 ### v1.0.0 (2026-01-28)
 - Initial release
 - Authentication with JWT
@@ -698,3 +929,4 @@ For issues or questions:
 - Payment tracking
 - Billing matrix view
 - DuckDB integration
+- Sqids integration for URL-safe IDs

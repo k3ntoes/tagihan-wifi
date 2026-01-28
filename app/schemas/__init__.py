@@ -49,11 +49,49 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+# ==================== Package Models ====================
+
+class PackageCreate(BaseModel):
+    """Create package request"""
+    name: str = Field(..., min_length=1, max_length=100)
+    speed: int = Field(..., gt=0, description="Speed in Mbps")
+    price: int = Field(..., gt=0, description="Price in Rupiah")
+
+    @field_validator("speed", "price")
+    @classmethod
+    def validate_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Value must be greater than 0")
+        return v
+
+
+class PackageUpdate(BaseModel):
+    """Update package request"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    speed: Optional[int] = Field(None, gt=0)
+    price: Optional[int] = Field(None, gt=0)
+
+
+class PackageResponse(BaseModel):
+    """Package response"""
+    id: str  # sqid string, generated on-the-fly
+    name: str
+    speed: int
+    price: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== Customer Models ====================
 
 class CustomerCreate(BaseModel):
     """Create customer request"""
     name: str = Field(..., min_length=1, max_length=100)
+    package_id: Optional[str] = Field(None, description="Package ID as sqid (optional)")
     monthly_fee: int = Field(..., gt=0)
 
     @field_validator("monthly_fee")
@@ -67,13 +105,16 @@ class CustomerCreate(BaseModel):
 class CustomerUpdate(BaseModel):
     """Update customer request"""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
+    package_id: Optional[str] = None  # sqid string
     monthly_fee: Optional[int] = Field(None, gt=0)
 
 
 class CustomerResponse(BaseModel):
-    """Customer response with sqid (generated on-the-fly, not stored in DB)"""
-    sqid: str  # Generated from id, not stored in database
+    """Customer response with id as sqid (generated on-the-fly, not stored in DB)"""
+    id: str  # sqid string, generated from internal id
     name: str
+    package_id: Optional[str] = None  # sqid string or null
+    package_name: Optional[str] = None
     monthly_fee: int
     created_at: datetime
     updated_at: datetime
@@ -86,8 +127,8 @@ class CustomerResponse(BaseModel):
 
 class PaymentCreate(BaseModel):
     """Create payment request"""
-    customer_id: Optional[int] = None
-    customer_sqid: Optional[str] = None
+    customer_id: Optional[str] = None  # sqid string
+    customer_sqid: Optional[str] = None  # Deprecated: use customer_id instead
     payment_date: date
     billing_month: int = Field(..., ge=1, le=12)
     billing_year: int = Field(..., ge=2020, le=2099)
@@ -95,9 +136,9 @@ class PaymentCreate(BaseModel):
 
 
 class PaymentResponse(BaseModel):
-    """Payment response with sqid (generated on-the-fly)"""
-    sqid: str  # Generated from id, not stored in database
-    customer_sqid: str  # Generated from customer_id
+    """Payment response with id as sqid (generated on-the-fly)"""
+    id: str  # sqid string, generated from internal id
+    customer_id: str  # sqid string, generated from internal customer_id
     payment_date: date
     billing_month: int
     billing_year: int
@@ -125,7 +166,7 @@ class PaymentByMonth(BaseModel):
 
 class BillingMatrixRow(BaseModel):
     """Row in billing matrix for a customer"""
-    customer_sqid: str  # Generated from customer_id
+    customer_id: str  # sqid string, generated from internal customer_id
     customer_name: str
     monthly_fee: int
     payments: List[PaymentByMonth]
@@ -139,6 +180,44 @@ class BillingMatrixResponse(BaseModel):
     year: int
     month_names: List[str]
     rows: List[BillingMatrixRow]
+
+
+# ==================== Pagination Models ====================
+
+class PaginationMeta(BaseModel):
+    """Pagination metadata"""
+    total: int = Field(..., ge=0, description="Total number of items")
+    page: int = Field(..., ge=1, description="Current page number")
+    per_page: int = Field(..., ge=1, le=100, description="Items per page")
+    total_pages: int = Field(..., ge=0, description="Total number of pages")
+    has_next: bool = Field(..., description="Whether there's a next page")
+    has_prev: bool = Field(..., description="Whether there's a previous page")
+
+
+class PaginatedPackageResponse(BaseModel):
+    """Paginated packages response"""
+    data: List[PackageResponse]
+    meta: PaginationMeta
+
+
+class PaginatedCustomerResponse(BaseModel):
+    """Paginated customers response"""
+    data: List[CustomerResponse]
+    meta: PaginationMeta
+
+
+class PaginatedPaymentResponse(BaseModel):
+    """Paginated payments response"""
+    data: List[PaymentResponse]
+    meta: PaginationMeta
+
+
+class PaginatedBillingMatrixResponse(BaseModel):
+    """Paginated billing matrix response"""
+    year: int
+    month_names: List[str]
+    data: List[BillingMatrixRow]
+    meta: PaginationMeta
 
 
 # ==================== Error Models ====================

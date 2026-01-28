@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, status, HTTPException, Query
 
 from app.core.auth import get_current_user, require_role
 from app.db.database import Database, get_db
-from app.schemas import PaymentCreate, PaymentResponse, PaymentLogParser
+from app.schemas import PaymentCreate, PaymentResponse, PaymentLogParser, PaginatedPaymentResponse, PaginationMeta
 from app.utils.payment_parser import parse_payment_log
 from app.utils.sqids_helper import get_sqids_helper
 
@@ -33,34 +33,47 @@ async def create_payment(
     Prevents duplicate payments for the same (customer, month, year).
     """
     try:
-        # Resolve customer_id from sqid if provided
-        customer_id = payment_data.customer_id
-        if payment_data.customer_sqid and not customer_id:
-            sqids_helper = get_sqids_helper()
+        sqids_helper = get_sqids_helper()
+        
+        # Resolve customer_id from sqid if provided (now customer_id field contains sqid)
+        actual_customer_id = None
+        if payment_data.customer_id:
             try:
-                customer_id = sqids_helper.decode_single(payment_data.customer_sqid)
+                actual_customer_id, model = sqids_helper.decode_with_prefix(payment_data.customer_id)
+                if model != 'customer':
+                    raise ValueError("Not a customer ID")
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid customer ID: {payment_data.customer_id}",
+                )
+        elif payment_data.customer_sqid:  # Backward compatibility
+            try:
+                actual_customer_id, model = sqids_helper.decode_with_prefix(payment_data.customer_sqid)
+                if model != 'customer':
+                    raise ValueError("Not a customer ID")
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid customer sqid: {payment_data.customer_sqid}",
                 )
 
-        if not customer_id:
+        if not actual_customer_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either customer_id or customer_sqid must be provided",
+                detail="customer_id must be provided",
             )
 
         # Verify customer exists
         customer = db.conn.execute(
-            "SELECT id FROM customers WHERE id = ? AND is_active = true LIMIT 1",
-            [customer_id],
-        ).fetchall()
+            "SELECT id FROM customers WHERE id = ? AND is_active = true",
+            [actual_customer_id],
+        ).fetchone()
 
         if not customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Customer not found: {customer_id}",
+                detail=f"Customer not found",
             )
 
         # Insert payment
@@ -71,7 +84,7 @@ async def create_payment(
             RETURNING id, customer_id, payment_date, billing_month, billing_year, amount, created_at, updated_at
             """,
             [
-                customer_id,
+                actual_customer_id,
                 payment_data.payment_date,
                 payment_data.billing_month,
                 payment_data.billing_year,
@@ -91,14 +104,13 @@ async def create_payment(
         payment_id = row[0]
         customer_id = row[1]
         
-        # Generate sqid on-the-fly
-        sqids_helper = get_sqids_helper()
-        payment_sqid = sqids_helper.encode_single(payment_id)
-        customer_sqid = sqids_helper.encode_single(customer_id)
+        # Generate sqid on-the-fly with Laravel-style prefix
+        payment_sqid = sqids_helper.encode_with_prefix(payment_id, 'payment')
+        customer_sqid = sqids_helper.encode_with_prefix(customer_id, 'customer')
         
         return PaymentResponse(
-            sqid=payment_sqid,
-            customer_sqid=customer_sqid,
+            id=payment_sqid,
+            customer_id=customer_sqid,
             payment_date=row[2],
             billing_month=row[3],
             billing_year=row[4],
@@ -122,30 +134,50 @@ async def create_payment(
         )
 
 
-@router.get("", response_model=List[PaymentResponse])
+@router.get("", response_model=PaginatedPaymentResponse)
 async def list_payments(
-    customer_sqid: Optional[str] = Query(None, description="Filter by customer sqid"),
-    customer_id: Optional[int] = Query(None, description="Filter by customer ID"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    customer_id: Optional[str] = Query(None, description="Filter by customer ID (sqid)"),
+    customer_sqid: Optional[str] = Query(None, description="Deprecated: use customer_id instead"),
     year: Optional[int] = Query(None, description="Filter by billing year"),
     month: Optional[int] = Query(None, description="Filter by billing month"),
     db: Database = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    List payments with optional filters.
+    List payments with optional filters and pagination.
 
     Filters:
-    - customer_sqid: Get payments for specific customer (by sqid)
-    - customer_id: Get payments for specific customer (by ID)
+    - customer_id: Get payments for specific customer (by sqid)
+    - customer_sqid: Deprecated, use customer_id instead
     - year: Get payments for specific year
     - month: Get payments for specific month
+
+    Pagination:
+    - page: Page number (default: 1)
+    - per_page: Items per page (default: 10, max: 100)
     """
     try:
+        sqids_helper = get_sqids_helper()
+        
         # Resolve customer_id from sqid if provided
-        if customer_sqid and not customer_id:
-            sqids_helper = get_sqids_helper()
+        actual_customer_id = None
+        if customer_id:
             try:
-                customer_id = sqids_helper.decode_single(customer_sqid)
+                actual_customer_id, model = sqids_helper.decode_with_prefix(customer_id)
+                if model != 'customer':
+                    raise ValueError("Not a customer ID")
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid customer ID: {customer_id}",
+                )
+        elif customer_sqid:  # Backward compatibility
+            try:
+                actual_customer_id, model = sqids_helper.decode_with_prefix(customer_sqid)
+                if model != 'customer':
+                    raise ValueError("Not a customer ID")
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -166,9 +198,9 @@ async def list_payments(
                 WHERE 1 = 1"""
         params = []
 
-        if customer_id:
+        if actual_customer_id:
             query += " AND customer_id = ?"
-            params.append(customer_id)
+            params.append(actual_customer_id)
 
         if year:
             query += " AND billing_year = ?"
@@ -178,16 +210,37 @@ async def list_payments(
             query += " AND billing_month = ?"
             params.append(month)
 
-        query += " ORDER BY billing_year DESC, billing_month DESC, payment_date DESC"
+        # Get total count
+        count_query = "SELECT COUNT(*) FROM payments WHERE 1 = 1"
+        count_params = []
+
+        if actual_customer_id:
+            count_query += " AND customer_id = ?"
+            count_params.append(actual_customer_id)
+
+        if year:
+            count_query += " AND billing_year = ?"
+            count_params.append(year)
+
+        if month:
+            count_query += " AND billing_month = ?"
+            count_params.append(month)
+
+        total = db.conn.execute(count_query, count_params).fetchone()[0]
+        
+        # Calculate pagination
+        offset = (page - 1) * per_page
+        total_pages = (total + per_page - 1) // per_page
+
+        query += " ORDER BY billing_year DESC, billing_month DESC, payment_date DESC LIMIT ? OFFSET ?"
+        params.extend([per_page, offset])
 
         result = db.conn.execute(query, params).fetchall()
-        
-        sqids_helper = get_sqids_helper()
 
-        payments = [
+        data = [
             PaymentResponse(
-                sqid=sqids_helper.encode_single(row[0]),
-                customer_sqid=sqids_helper.encode_single(row[1]),
+                id=sqids_helper.encode_with_prefix(row[0], 'payment'),
+                customer_id=sqids_helper.encode_with_prefix(row[1], 'customer'),
                 payment_date=row[2],
                 billing_month=row[3],
                 billing_year=row[4],
@@ -197,8 +250,17 @@ async def list_payments(
             )
             for row in result
         ]
-
-        return payments
+        
+        meta = PaginationMeta(
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1,
+        )
+        
+        return PaginatedPaymentResponse(data=data, meta=meta)
 
     except HTTPException:
         raise
@@ -276,10 +338,10 @@ async def parse_payment_log_endpoint(
         payment_id = row[0]
         customer_id = row[1]
         
-        # Generate sqid on-the-fly
+        # Generate sqid on-the-fly with Laravel-style prefix
         sqids_helper = get_sqids_helper()
-        payment_sqid = sqids_helper.encode_single(payment_id)
-        customer_sqid = sqids_helper.encode_single(customer_id)
+        payment_sqid = sqids_helper.encode_with_prefix(payment_id, 'payment')
+        customer_sqid = sqids_helper.encode_with_prefix(customer_id, 'customer')
         
         return PaymentResponse(
             sqid=payment_sqid,

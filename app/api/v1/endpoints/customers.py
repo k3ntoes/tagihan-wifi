@@ -9,13 +9,13 @@ Endpoints:
 - DELETE /customers/{sqid} - Delete customer (admin only)
 """
 
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query
 
 from app.core.auth import get_current_user, require_role
 from app.db.database import Database, get_db
-from app.schemas import CustomerCreate, CustomerUpdate, CustomerResponse
+from app.schemas import CustomerCreate, CustomerUpdate, CustomerResponse, PaginatedCustomerResponse, PaginationMeta
 from app.utils.sqids_helper import get_sqids_helper
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -35,14 +35,38 @@ async def create_customer(
     try:
         sqids_helper = get_sqids_helper()
 
+        # Validate package_id if provided (now expects sqid string)
+        actual_package_id = None
+        if customer_data.package_id is not None:
+            try:
+                actual_package_id, model = sqids_helper.decode_with_prefix(customer_data.package_id)
+                if model != 'package':
+                    raise ValueError("Not a package ID")
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid package ID: {customer_data.package_id}",
+                )
+            
+            package_check = db.conn.execute(
+                "SELECT id, price FROM packages WHERE id = ? AND is_active = true",
+                [actual_package_id],
+            ).fetchone()
+            
+            if not package_check:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Package with ID {customer_data.package_id} not found or inactive",
+                )
+
         # Insert customer
         result = db.conn.execute(
             """
-            INSERT INTO customers (name, monthly_fee)
-            VALUES (?, ?)
-            RETURNING id, name, monthly_fee, created_at, updated_at
+            INSERT INTO customers (name, package_id, monthly_fee)
+            VALUES (?, ?, ?)
+            RETURNING id, name, package_id, monthly_fee, created_at, updated_at
             """,
-            [customer_data.name, customer_data.monthly_fee],
+            [customer_data.name, actual_package_id, customer_data.monthly_fee],
         ).fetchall()
 
         if not result:
@@ -56,15 +80,29 @@ async def create_customer(
         customer_row = result[0]
         customer_id = customer_row[0]
 
-        # Generate sqid on-the-fly from ID
-        sqid = sqids_helper.encode_single(customer_id)
+        # Generate sqid on-the-fly from ID with Laravel-style prefix
+        customer_sqid = sqids_helper.encode_with_prefix(customer_id, 'customer')
+        
+        # Get package name and sqid if package_id is set
+        package_name = None
+        package_sqid = None
+        if customer_row[2] is not None:
+            pkg = db.conn.execute(
+                "SELECT name FROM packages WHERE id = ?",
+                [customer_row[2]],
+            ).fetchone()
+            if pkg:
+                package_name = pkg[0]
+                package_sqid = sqids_helper.encode_with_prefix(customer_row[2], 'package')
 
         return CustomerResponse(
-            sqid=sqid,
+            id=customer_sqid,
             name=customer_row[1],
-            monthly_fee=customer_row[2],
-            created_at=customer_row[3],
-            updated_at=customer_row[4],
+            package_id=package_sqid,
+            package_name=package_name,
+            monthly_fee=customer_row[3],
+            created_at=customer_row[4],
+            updated_at=customer_row[5],
         )
 
     except ValueError as e:
@@ -81,40 +119,119 @@ async def create_customer(
         )
 
 
-@router.get("", response_model=List[CustomerResponse])
+@router.get("", response_model=PaginatedCustomerResponse)
 async def list_customers(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    name: Optional[str] = Query(None, description="Filter by customer name (partial match)"),
+    package_id: Optional[str] = Query(None, description="Filter by package ID (sqid)"),
     db: Database = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    List all customers (authenticated users only).
+    List all customers (authenticated users only) with pagination.
 
-    Returns all customers with sqid generated on-the-fly.
+    Supports filtering by:
+    - name: Partial match on customer name (case-insensitive)
+    - package_id: Exact match on package ID (sqid format)
+
+    Pagination:
+    - page: Page number (default: 1)
+    - per_page: Items per page (default: 10, max: 100)
+
+    Returns all active customers with sqid generated on-the-fly.
     """
     try:
         sqids_helper = get_sqids_helper()
         
-        result = db.conn.execute(
-            """
-            SELECT id, name, monthly_fee, created_at, updated_at
-            FROM customers
-            WHERE is_active = true
-            ORDER BY name ASC
-            """
-        ).fetchall()
+        # Build query with filters
+        query = """
+            SELECT c.id, c.name, c.package_id, p.name as package_name, c.monthly_fee, c.created_at, c.updated_at
+            FROM customers c
+            LEFT JOIN packages p ON c.package_id = p.id
+            WHERE c.is_active = true
+        """
+        params = []
+        
+        # Add name filter (partial match, case-insensitive)
+        if name and name.strip():
+            query += " AND LOWER(c.name) LIKE LOWER(?)"
+            params.append(f"%{name.strip()}%")
+        
+        # Add package_id filter
+        if package_id and package_id.strip():
+            try:
+                actual_package_id, model = sqids_helper.decode_with_prefix(package_id)
+                if model != 'package':
+                    raise ValueError("Not a package ID")
+                query += " AND c.package_id = ?"
+                params.append(actual_package_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid package ID: {package_id}",
+                )
+        
+        # Get total count
+        count_query = """
+            SELECT COUNT(*)
+            FROM customers c
+            LEFT JOIN packages p ON c.package_id = p.id
+            WHERE c.is_active = true
+        """
+        count_params = []
+        
+        if name and name.strip():
+            count_query += " AND LOWER(c.name) LIKE LOWER(?)"
+            count_params.append(f"%{name.strip()}%")
+        
+        if package_id and package_id.strip():
+            try:
+                actual_package_id, model = sqids_helper.decode_with_prefix(package_id)
+                if model != 'package':
+                    raise ValueError("Not a package ID")
+                count_query += " AND c.package_id = ?"
+                count_params.append(actual_package_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid package ID: {package_id}",
+                )
+        
+        total = db.conn.execute(count_query, count_params).fetchone()[0]
+        
+        # Calculate pagination
+        offset = (page - 1) * per_page
+        total_pages = (total + per_page - 1) // per_page
+        
+        query += " ORDER BY c.name ASC LIMIT ? OFFSET ?"
+        params.extend([per_page, offset])
+        
+        result = db.conn.execute(query, params).fetchall()
 
-        customers = [
+        data = [
             CustomerResponse(
-                sqid=sqids_helper.encode_single(row[0]),
+                id=sqids_helper.encode_with_prefix(row[0], 'customer'),
                 name=row[1],
-                monthly_fee=row[2],
-                created_at=row[3],
-                updated_at=row[4],
+                package_id=sqids_helper.encode_with_prefix(row[2], 'package') if row[2] is not None else None,
+                package_name=row[3],
+                monthly_fee=row[4],
+                created_at=row[5],
+                updated_at=row[6],
             )
             for row in result
         ]
-
-        return customers
+        
+        meta = PaginationMeta(
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1,
+        )
+        
+        return PaginatedCustomerResponse(data=data, meta=meta)
 
     except Exception as e:
         raise HTTPException(
@@ -123,14 +240,14 @@ async def list_customers(
         )
 
 
-@router.get("/{sqid}", response_model=CustomerResponse)
+@router.get("/{customer_id}", response_model=CustomerResponse)
 async def get_customer(
-    sqid: str,
+    customer_id: str,
     db: Database = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Get customer by sqid.
+    Get customer by ID (sqid).
 
     Decodes sqid to get customer_id, then returns customer details.
     """
@@ -139,36 +256,39 @@ async def get_customer(
         
         # Decode sqid to get customer_id
         try:
-            customer_id = sqids_helper.decode_single(sqid)
+            actual_customer_id = sqids_helper.decode_single(customer_id)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid customer sqid: {sqid}",
+                detail=f"Invalid customer ID: {customer_id}",
             )
         
         result = db.conn.execute(
             """
-            SELECT id, name, monthly_fee, created_at, updated_at
-            FROM customers
-            WHERE id = ? AND is_active = true
+            SELECT c.id, c.name, c.package_id, p.name as package_name, c.monthly_fee, c.created_at, c.updated_at
+            FROM customers c
+            LEFT JOIN packages p ON c.package_id = p.id
+            WHERE c.id = ? AND c.is_active = true
             LIMIT 1
             """,
-            [customer_id],
+            [actual_customer_id],
         ).fetchall()
 
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Customer not found: {sqid}",
+                detail=f"Customer not found: {customer_id}",
             )
 
         row = result[0]
         return CustomerResponse(
-            sqid=sqid,
+            id=customer_id,
             name=row[1],
-            monthly_fee=row[2],
-            created_at=row[3],
-            updated_at=row[4],
+            package_id=sqids_helper.encode_with_prefix(row[2], 'package') if row[2] is not None else None,
+            package_name=row[3],
+            monthly_fee=row[4],
+            created_at=row[5],
+            updated_at=row[6],
         )
 
     except HTTPException:
@@ -180,9 +300,9 @@ async def get_customer(
         )
 
 
-@router.patch("/{sqid}", response_model=CustomerResponse)
+@router.patch("/{customer_id}", response_model=CustomerResponse)
 async def update_customer(
-    sqid: str,
+    customer_id: str,
     update_data: CustomerUpdate,
     db: Database = Depends(get_db),
     current_user: dict = Depends(require_role("admin")),
@@ -190,30 +310,32 @@ async def update_customer(
     """
     Update customer (admin only).
 
-    Can update name and/or monthly_fee.
+    Can update name, package_id (as sqid), and/or monthly_fee.
     """
     try:
         sqids_helper = get_sqids_helper()
         
         # Decode sqid to get customer_id
         try:
-            customer_id = sqids_helper.decode_single(sqid)
+            actual_customer_id, model = sqids_helper.decode_with_prefix(customer_id)
+            if model != 'customer':
+                raise ValueError("Not a customer ID")
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid customer sqid: {sqid}",
+                detail=f"Invalid customer ID: {customer_id}",
             )
         
         # Check if customer exists
         customer = db.conn.execute(
             "SELECT id FROM customers WHERE id = ? AND is_active = true LIMIT 1",
-            [customer_id],
+            [actual_customer_id],
         ).fetchall()
 
         if not customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Customer not found: {sqid}",
+                detail=f"Customer not found: {customer_id}",
             )
 
         # Build update query dynamically
@@ -223,6 +345,32 @@ async def update_customer(
         if update_data.name is not None:
             updates.append("name = ?")
             params.append(update_data.name)
+            
+        if update_data.package_id is not None:
+            # Decode package sqid to actual ID
+            try:
+                actual_package_id, model = sqids_helper.decode_with_prefix(update_data.package_id)
+                if model != 'package':
+                    raise ValueError("Not a package ID")
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid package ID: {update_data.package_id}",
+                )
+            
+            # Validate package exists
+            package_check = db.conn.execute(
+                "SELECT id FROM packages WHERE id = ? AND is_active = true",
+                [actual_package_id],
+            ).fetchone()
+            
+            if not package_check:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Package with ID {update_data.package_id} not found or inactive",
+                )
+            updates.append("package_id = ?")
+            params.append(actual_package_id)
 
         if update_data.monthly_fee is not None:
             updates.append("monthly_fee = ?")
@@ -230,14 +378,14 @@ async def update_customer(
 
         if not updates:
             # No updates provided, return existing customer
-            return await get_customer(sqid, db, current_user)
+            return await get_customer(customer_id, db, current_user)
 
         # Add updated_at and customer_id
         updates.append("updated_at = CURRENT_TIMESTAMP")
-        params.append(customer_id)
+        params.append(actual_customer_id)
 
         # Execute update
-        query = f"UPDATE customers SET {', '.join(updates)} WHERE id = ? RETURNING id, name, monthly_fee, created_at, updated_at"
+        query = f"UPDATE customers SET {', '.join(updates)} WHERE id = ? RETURNING id, name, package_id, monthly_fee, created_at, updated_at"
         result = db.conn.execute(query, params).fetchall()
 
         db.conn.commit()
@@ -249,12 +397,27 @@ async def update_customer(
             )
 
         row = result[0]
+        
+        # Get package name and sqid if package_id is set
+        package_name = None
+        package_sqid = None
+        if row[2] is not None:
+            pkg = db.conn.execute(
+                "SELECT name FROM packages WHERE id = ?",
+                [row[2]],
+            ).fetchone()
+            if pkg:
+                package_name = pkg[0]
+                package_sqid = sqids_helper.encode_with_prefix(row[2], 'package')
+        
         return CustomerResponse(
-            sqid=sqid,
+            id=customer_id,
             name=row[1],
-            monthly_fee=row[2],
-            created_at=row[3],
-            updated_at=row[4],
+            package_id=package_sqid,
+            package_name=package_name,
+            monthly_fee=row[3],
+            created_at=row[4],
+            updated_at=row[5],
         )
 
     except HTTPException:
@@ -267,9 +430,9 @@ async def update_customer(
         )
 
 
-@router.delete("/{sqid}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_customer(
-    sqid: str,
+    customer_id: str,
     db: Database = Depends(get_db),
     current_user: dict = Depends(require_role("admin")),
 ):
@@ -283,29 +446,31 @@ async def delete_customer(
         
         # Decode sqid to get customer_id
         try:
-            customer_id = sqids_helper.decode_single(sqid)
+            actual_customer_id, model = sqids_helper.decode_with_prefix(customer_id)
+            if model != 'customer':
+                raise ValueError("Not a customer ID")
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid customer sqid: {sqid}",
+                detail=f"Invalid customer ID: {customer_id}",
             )
         
         # Check if customer exists
         customer = db.conn.execute(
             "SELECT id FROM customers WHERE id = ? LIMIT 1",
-            [customer_id],
+            [actual_customer_id],
         ).fetchall()
 
         if not customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Customer not found: {sqid}",
+                detail=f"Customer not found: {customer_id}",
             )
 
         # Soft delete
         db.conn.execute(
             "UPDATE customers SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            [customer_id],
+            [actual_customer_id],
         )
         db.conn.commit()
 

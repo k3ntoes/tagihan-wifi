@@ -84,16 +84,34 @@ class Database:
             self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_customers START 1")
             self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_payments START 1")
             self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_users START 1")
+            self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_packages START 1")
+
+            # Create packages table
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS packages (
+                    id INTEGER PRIMARY KEY DEFAULT nextval('seq_packages'),
+                    name VARCHAR NOT NULL UNIQUE,
+                    speed INTEGER NOT NULL CHECK (speed > 0),
+                    price INTEGER NOT NULL CHECK (price > 0),
+                    is_active BOOLEAN DEFAULT true,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(name)")
 
             # Create customers table with optimized data types
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS customers (
                     id INTEGER PRIMARY KEY DEFAULT nextval('seq_customers'),
                     name VARCHAR NOT NULL,
+                    package_id INTEGER,
                     monthly_fee INTEGER NOT NULL CHECK (monthly_fee > 0),
                     is_active BOOLEAN DEFAULT true,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (package_id) REFERENCES packages(id)
                 )
             """)
 
