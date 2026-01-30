@@ -6,10 +6,10 @@ ENV PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen
-
 COPY . .
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
 
 RUN chmod +x /app/entrypoint.sh
 RUN /app/entrypoint.sh /bin/true
