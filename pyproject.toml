@@ -20,7 +20,6 @@ description = "FastAPI backend for WiFi billing management with SQLite"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{name = "Development Team"}]
-license = {text = "Proprietary"}
 
 dependencies = [
     "fastapi>=0.128.0",
