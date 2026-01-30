@@ -4,7 +4,6 @@ requires = [
     "wheel",
     "fastapi>=0.128.0",
     "uvicorn[standard]>=0.40.0",
-    "duckdb>=1.0.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "pyjwt>=2.8.0",
@@ -17,7 +16,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tagihan-wifi"
 version = "1.0.0"
-description = "FastAPI backend for WiFi billing management with DuckDB"
+description = "FastAPI backend for WiFi billing management with SQLite"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{name = "Development Team"}]
@@ -26,7 +25,6 @@ license = {text = "Proprietary"}
 dependencies = [
     "fastapi>=0.128.0",
     "uvicorn[standard]>=0.40.0",
-    "duckdb>=1.0.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "pyjwt>=2.8.0",

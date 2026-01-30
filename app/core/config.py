@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # Database
-    DATABASE_PATH: str = os.getenv("DATABASE_PATH", "./tagihan-wifi.db")
+    DATABASE_PATH: str = os.getenv("DATABASE_PATH", "./data/tagihan-wifi.db")
     DB_THREADS: int = int(os.getenv("DB_THREADS", "4"))
     DB_MEMORY_LIMIT: str = os.getenv("DB_MEMORY_LIMIT", "2GB")
     DB_MAX_MEMORY: str = os.getenv("DB_MAX_MEMORY", "4GB")

@@ -1,19 +1,18 @@
 """
-Database module for DuckDB persistence and schema management.
+Database module for SQLite persistence and schema management.
 
 Best Practices Applied:
-- Proper data types (TINYINT for month, SMALLINT for year)
-- SEQUENCE for auto-increment IDs
+- WAL journaling for concurrent reads
+- Foreign key enforcement
 - Composite indexes for common queries
-- Optimized memory settings
-- Prepared statements for efficiency
+- Proper transaction handling
 """
 
 import logging
 from contextlib import contextmanager
 from pathlib import Path
 
-import duckdb
+import sqlite3
 
 from app.core.config import settings
 
@@ -22,14 +21,8 @@ logger = logging.getLogger(__name__)
 
 class Database:
     """
-    Database manager for DuckDB persistent storage.
+    Database manager for SQLite persistent storage.
     Handles connection pooling and schema initialization with best practices.
-
-    DuckDB optimizations:
-    - Memory-efficient data types
-    - Compound indexes for common query patterns
-    - Proper transaction handling
-    - Connection pooling via singleton pattern
     """
 
     def __init__(self, database_path: str = None, read_only: bool = False):
@@ -37,21 +30,20 @@ class Database:
         Initialize database connection.
 
         Args:
-            database_path: Path to DuckDB file. Defaults to settings.DATABASE_PATH
+            database_path: Path to SQLite file. Defaults to settings.DATABASE_PATH
             read_only: If True, open database in read-only mode
         """
         self.database_path = database_path or settings.DATABASE_PATH
         Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
 
-        config = {
-            "threads": settings.DB_THREADS,
-            "memory_limit": settings.DB_MEMORY_LIMIT,
-            "max_memory": settings.DB_MAX_MEMORY,
-        }
-
         try:
-            self.conn = duckdb.connect(self.database_path, read_only=read_only, config=config)
-            logger.info(f"Connected to DuckDB: {self.database_path}")
+            if read_only:
+                uri = f"file:{self.database_path}?mode=ro"
+                self.conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+            else:
+                self.conn = sqlite3.connect(self.database_path, check_same_thread=False)
+
+            logger.info(f"Connected to SQLite: {self.database_path}")
 
             if not read_only:
                 self._set_pragmas()
@@ -62,13 +54,12 @@ class Database:
             raise
 
     def _set_pragmas(self):
-        """Set optimal pragma settings for DuckDB performance."""
+        """Set optimal pragma settings for SQLite performance."""
         pragmas = [
-            "PRAGMA threads = 4",
-            "PRAGMA memory_limit = '2GB'",
-            "PRAGMA default_null_order = 'nulls_last'",
-            "PRAGMA enable_object_cache = true",
-            "PRAGMA force_compression = 'auto'",
+            "PRAGMA journal_mode = WAL",
+            "PRAGMA synchronous = NORMAL",
+            "PRAGMA temp_store = MEMORY",
+            "PRAGMA foreign_keys = ON",
         ]
 
         for pragma in pragmas:
@@ -80,20 +71,14 @@ class Database:
     def _initialize_schema(self):
         """Create tables and indexes if they don't exist."""
         try:
-            # Create sequences for auto-increment
-            self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_customers START 1")
-            self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_payments START 1")
-            self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_users START 1")
-            self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_packages START 1")
-
             # Create packages table
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS packages (
-                    id INTEGER PRIMARY KEY DEFAULT nextval('seq_packages'),
-                    name VARCHAR NOT NULL UNIQUE,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
                     speed INTEGER NOT NULL CHECK (speed > 0),
                     price INTEGER NOT NULL CHECK (price > 0),
-                    is_active BOOLEAN DEFAULT true,
+                    is_active BOOLEAN DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -104,11 +89,11 @@ class Database:
             # Create customers table with optimized data types
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS customers (
-                    id INTEGER PRIMARY KEY DEFAULT nextval('seq_customers'),
-                    name VARCHAR NOT NULL,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
                     package_id INTEGER,
                     monthly_fee INTEGER NOT NULL CHECK (monthly_fee > 0),
-                    is_active BOOLEAN DEFAULT true,
+                    is_active BOOLEAN DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (package_id) REFERENCES packages(id)
@@ -120,15 +105,16 @@ class Database:
             # Create payments table with optimized data types
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS payments (
-                    id INTEGER PRIMARY KEY DEFAULT nextval('seq_payments'),
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     customer_id INTEGER NOT NULL,
                     payment_date DATE NOT NULL,
-                    billing_month TINYINT NOT NULL CHECK (billing_month >= 1 AND billing_month <= 12),
-                    billing_year SMALLINT NOT NULL CHECK (billing_year >= 2020 AND billing_year <= 2100),
+                    billing_month INTEGER NOT NULL CHECK (billing_month >= 1 AND billing_month <= 12),
+                    billing_year INTEGER NOT NULL CHECK (billing_year >= 2020 AND billing_year <= 2100),
                     amount INTEGER NOT NULL CHECK (amount > 0),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(customer_id, billing_month, billing_year)
+                    UNIQUE(customer_id, billing_month, billing_year),
+                    FOREIGN KEY (customer_id) REFERENCES customers(id)
                 )
             """)
 
@@ -142,11 +128,11 @@ class Database:
             # Create users table
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY DEFAULT nextval('seq_users'),
-                    username VARCHAR NOT NULL UNIQUE,
-                    password_hash VARCHAR NOT NULL,
-                    role VARCHAR NOT NULL CHECK (role IN ('admin', 'user')),
-                    is_active BOOLEAN DEFAULT true,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+                    is_active BOOLEAN DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -209,11 +195,10 @@ class Database:
     def vacuum(self):
         """Optimize database file (remove unused space)."""
         try:
-            self.conn.execute("PRAGMA database_list")
-            self.conn.execute("CHECKPOINT")
-            logger.info("Database checkpoint completed")
+            self.conn.execute("VACUUM")
+            logger.info("Database vacuum completed")
         except Exception as e:
-            logger.warning(f"Checkpoint failed: {e}")
+            logger.warning(f"Vacuum failed: {e}")
 
     def close(self):
         """Close database connection."""
