@@ -5,6 +5,7 @@ Creates initial admin user and sample data.
 """
 
 import getpass
+import os
 import sys
 from pathlib import Path
 
@@ -78,18 +79,67 @@ def add_sample_customer(db: Database, name: str, monthly_fee: int):
         return False
 
 
+def _is_truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def main():
     """Main setup function."""
     print("=" * 60)
     print("Tagihan WiFi API - Setup")
     print("=" * 60)
 
+    non_interactive = _is_truthy(os.getenv("SETUP_DB_NON_INTERACTIVE"))
+    skip_admin = _is_truthy(os.getenv("SETUP_DB_SKIP_ADMIN"))
+    add_samples_env = os.getenv("SETUP_DB_ADD_SAMPLES")
+    add_samples = _is_truthy(add_samples_env) if add_samples_env is not None else None
+
     # Initialize database
     print("\nInitializing database...")
     db = Database()
     print("✓ Database initialized")
 
-    # Create admin user
+    if non_interactive:
+        print("\n--- Non-Interactive Setup ---")
+        if skip_admin:
+            print("Skipping admin creation (SETUP_DB_SKIP_ADMIN=1)")
+        else:
+            username = os.getenv("ADMIN_USERNAME", "admin")
+            password = os.getenv("ADMIN_PASSWORD")
+
+            if not password:
+                print("ADMIN_PASSWORD not set. Skipping admin creation.")
+            else:
+                user = db.conn.execute(
+                    "SELECT COUNT(*) FROM users WHERE username = ?",
+                    [username],
+                ).fetchall()
+
+                if user[0][0] > 0:
+                    print(f"User '{username}' already exists. Skipping...")
+                else:
+                    if len(password) < 6:
+                        print("ADMIN_PASSWORD must be at least 6 characters. Skipping...")
+                    else:
+                        create_admin_user(db, username, password)
+
+        if add_samples:
+            sample_customers = [
+                ("Opi", 150000),
+                ("Budi", 200000),
+                ("Siti", 175000),
+            ]
+
+            for name, fee in sample_customers:
+                add_sample_customer(db, name, fee)
+        else:
+            print("Skipping sample customers.")
+
+        print("\nSetup Complete (non-interactive).")
+        db.close()
+        return
+
+    # Create admin user (interactive)
     print("\n--- Create Admin User ---")
     username = input("Enter admin username (default: admin): ").strip() or "admin"
 
@@ -117,7 +167,7 @@ def main():
             create_admin_user(db, username, password)
             break
 
-    # Add sample customers
+    # Add sample customers (interactive)
     print("\n--- Add Sample Customers (Optional) ---")
     add_samples = input("Add sample customers? (y/n): ").strip().lower() == "y"
 
