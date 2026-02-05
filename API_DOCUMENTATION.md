@@ -39,9 +39,9 @@ Dokumentasi lengkap untuk API Backend Tagihan WiFi. Panduan ini dimaksudkan untu
 **Response (200 OK):**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer",
-  "expires_in": 3600
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "tokenType": "bearer",
+  "expiresIn": 3600
 }
 ```
 
@@ -76,8 +76,8 @@ Authorization: Bearer <access_token>
     "id": 1,
     "username": "admin",
     "role": "admin",
-    "is_active": true,
-    "created_at": "2026-02-05T10:00:00"
+    "isActive": true,
+    "createdAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -107,8 +107,8 @@ Authorization: Bearer <admin_token>
     "id": 2,
     "username": "newuser",
     "role": "user",
-    "is_active": true,
-    "created_at": "2026-02-05T10:30:00"
+    "isActive": true,
+    "createdAt": "2026-02-05T10:30:00"
   }
 }
 ```
@@ -128,9 +128,9 @@ Single resource responses (create, get single) are wrapped in a `data` object:
     "name": "Paket Premium",
     "speed": 100,
     "price": 250000,
-    "is_active": true,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T10:00:00"
+    "isActive": true,
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -222,9 +222,9 @@ Content-Type: application/json
     "name": "Paket 100 Mbps",
     "speed": 100,
     "price": 250000,
-    "is_active": true,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T10:00:00"
+    "isActive": true,
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -242,13 +242,13 @@ List all packages with filters and pagination.
 **Query Parameters:**
 ```
 page=1                    # Page number (default: 1)
-per_page=10              # Items per page (default: 10, max: 100)
+perPage=10               # Items per page (default: 10, max: 100)
 name=premium             # Filter by name (partial match)
-min_speed=50             # Filter by minimum speed (Mbps)
-max_speed=100            # Filter by maximum speed (Mbps)
-min_price=100000         # Filter by minimum price
-max_price=300000         # Filter by maximum price
-include_inactive=false   # Include inactive packages (default: false)
+minSpeed=50              # Filter by minimum speed (Mbps)
+maxSpeed=100             # Filter by maximum speed (Mbps)
+minPrice=100000          # Filter by minimum price
+maxPrice=300000          # Filter by maximum price
+includeInactive=false    # Include inactive packages (default: false)
 ```
 
 **Response (200 OK):**
@@ -260,18 +260,18 @@ include_inactive=false   # Include inactive packages (default: false)
       "name": "Paket 100 Mbps",
       "speed": 100,
       "price": 250000,
-      "is_active": true,
-      "created_at": "2026-02-05T10:00:00",
-      "updated_at": "2026-02-05T10:00:00"
+      "isActive": true,
+      "createdAt": "2026-02-05T10:00:00",
+      "updatedAt": "2026-02-05T10:00:00"
     }
   ],
   "meta": {
     "total": 3,
     "page": 1,
-    "per_page": 10,
-    "total_pages": 1,
-    "has_next": false,
-    "has_prev": false
+    "perPage": 10,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
   }
 }
 ```
@@ -292,9 +292,9 @@ Get specific package by ID.
     "name": "Paket 100 Mbps",
     "speed": 100,
     "price": 250000,
-    "is_active": true,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T10:00:00"
+    "isActive": true,
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -331,9 +331,9 @@ Content-Type: application/json
     "name": "Paket 100 Mbps Updated",
     "speed": 110,
     "price": 260000,
-    "is_active": true,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T11:00:00"
+    "isActive": true,
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T11:00:00"
   }
 }
 ```
@@ -377,8 +377,8 @@ Content-Type: application/json
 ```json
 {
   "name": "PT Mitra Bisnis",
-  "package_id": "pkg_abc123xyz",
-  "monthly_fee": 250000
+  "packageId": "pkg_abc123xyz",
+  "monthlyFee": 250000
 }
 ```
 
@@ -392,9 +392,9 @@ Content-Type: application/json
       "id": "pkg_abc123xyz",
       "name": "Paket 100 Mbps"
     },
-    "monthly_fee": 250000,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T10:00:00"
+    "monthlyFee": 250000,
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -412,9 +412,9 @@ List all customers with filters and pagination.
 **Query Parameters:**
 ```
 page=1                   # Page number (default: 1)
-per_page=10             # Items per page (default: 10, max: 100)
+perPage=10              # Items per page (default: 10, max: 100)
 name=mitra              # Filter by customer name (partial match)
-package_id=pkg_abc123xyz # Filter by package ID
+packageId=pkg_abc123xyz # Filter by package ID
 ```
 
 **Response (200 OK):**
@@ -428,18 +428,18 @@ package_id=pkg_abc123xyz # Filter by package ID
         "id": "pkg_abc123xyz",
         "name": "Paket 100 Mbps"
       },
-      "monthly_fee": 250000,
-      "created_at": "2026-02-05T10:00:00",
-      "updated_at": "2026-02-05T10:00:00"
+      "monthlyFee": 250000,
+      "createdAt": "2026-02-05T10:00:00",
+      "updatedAt": "2026-02-05T10:00:00"
     }
   ],
   "meta": {
     "total": 5,
     "page": 1,
-    "per_page": 10,
-    "total_pages": 1,
-    "has_next": false,
-    "has_prev": false
+    "perPage": 10,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
   }
 }
 ```
@@ -462,9 +462,9 @@ Get specific customer by ID.
       "id": "pkg_abc123xyz",
       "name": "Paket 100 Mbps"
     },
-    "monthly_fee": 250000,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T10:00:00"
+    "monthlyFee": 250000,
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -484,8 +484,8 @@ Content-Type: application/json
 ```json
 {
   "name": "PT Mitra Bisnis Baru",
-  "package_id": "pkg_def456ghi",
-  "monthly_fee": 300000
+  "packageId": "pkg_def456ghi",
+  "monthlyFee": 300000
 }
 ```
 
@@ -499,9 +499,9 @@ Content-Type: application/json
       "id": "pkg_def456ghi",
       "name": "Paket Premium"
     },
-    "monthly_fee": 300000,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T11:00:00"
+    "monthlyFee": 300000,
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T11:00:00"
   }
 }
 ```
@@ -534,10 +534,10 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "customer_id": "cust_xyz789abc",
-  "payment_date": "2026-02-05",
-  "billing_month": 2,
-  "billing_year": 2026,
+  "customerId": "cust_xyz789abc",
+  "paymentDate": "2026-02-05",
+  "billingMonth": 2,
+  "billingYear": 2026,
   "amount": 250000
 }
 ```
@@ -547,13 +547,21 @@ Content-Type: application/json
 {
   "data": {
     "id": "pay_abc123xyz",
-    "customer_id": "cust_xyz789abc",
-    "payment_date": "2026-02-05",
-    "billing_month": 2,
-    "billing_year": 2026,
+    "customer": {
+      "id": "cust_xyz789abc",
+      "name": "PT Mitra Bisnis",
+      "monthlyFee": 250000,
+      "package": {
+        "id": "pkg_abc123xyz",
+        "name": "Paket 100 Mbps"
+      }
+    },
+    "paymentDate": "2026-02-05",
+    "billingMonth": 2,
+    "billingYear": 2026,
     "amount": 250000,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T10:00:00"
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -572,8 +580,8 @@ List all payments with filters and pagination.
 **Query Parameters:**
 ```
 page=1                   # Page number (default: 1)
-per_page=10             # Items per page (default: 10, max: 100)
-customer_id=cust_xyz789abc # Filter by customer ID
+perPage=10              # Items per page (default: 10, max: 100)
+customerId=cust_xyz789abc # Filter by customer ID
 year=2026               # Filter by billing year
 month=2                 # Filter by billing month
 ```
@@ -584,22 +592,30 @@ month=2                 # Filter by billing month
   "data": [
     {
       "id": "pay_abc123xyz",
-      "customer_id": "cust_xyz789abc",
-      "payment_date": "2026-02-05",
-      "billing_month": 2,
-      "billing_year": 2026,
+      "customer": {
+        "id": "cust_xyz789abc",
+        "name": "PT Mitra Bisnis",
+        "monthlyFee": 250000,
+        "package": {
+          "id": "pkg_abc123xyz",
+          "name": "Paket 100 Mbps"
+        }
+      },
+      "paymentDate": "2026-02-05",
+      "billingMonth": 2,
+      "billingYear": 2026,
       "amount": 250000,
-      "created_at": "2026-02-05T10:00:00",
-      "updated_at": "2026-02-05T10:00:00"
+      "createdAt": "2026-02-05T10:00:00",
+      "updatedAt": "2026-02-05T10:00:00"
     }
   ],
   "meta": {
     "total": 15,
     "page": 1,
-    "per_page": 10,
-    "total_pages": 2,
-    "has_next": true,
-    "has_prev": false
+    "perPage": 10,
+    "totalPages": 2,
+    "hasNext": true,
+    "hasPrev": false
   }
 }
 ```
@@ -629,13 +645,21 @@ Format: `DD-MM-YYYY customer_name`
 {
   "data": {
     "id": "pay_abc123xyz",
-    "customer_id": "cust_xyz789abc",
-    "payment_date": "2026-02-05",
-    "billing_month": 2,
-    "billing_year": 2026,
+    "customer": {
+      "id": "cust_xyz789abc",
+      "name": "PT Mitra Bisnis",
+      "monthlyFee": 250000,
+      "package": {
+        "id": "pkg_abc123xyz",
+        "name": "Paket 100 Mbps"
+      }
+    },
+    "paymentDate": "2026-02-05",
+    "billingMonth": 2,
+    "billingYear": 2026,
     "amount": 250000,
-    "created_at": "2026-02-05T10:00:00",
-    "updated_at": "2026-02-05T10:00:00"
+    "createdAt": "2026-02-05T10:00:00",
+    "updatedAt": "2026-02-05T10:00:00"
   }
 }
 ```
@@ -659,59 +683,65 @@ Get annual billing matrix for all customers (paginated).
 **Query Parameters:**
 ```
 page=1                      # Page number (default: 1)
-per_page=10                # Items per page (default: 10, max: 100)
-customer_id=cust_xyz789abc # Filter by specific customer
-customer_name=mitra        # Filter by customer name (partial match)
+perPage=10                 # Items per page (default: 10, max: 100)
+customerId=cust_xyz789abc  # Filter by specific customer
+customerName=mitra         # Filter by customer name (partial match)
 ```
 
 **Response (200 OK):**
 ```json
 {
   "year": 2026,
-  "month_names": [
+  "monthNames": [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ],
   "data": [
     {
-      "customer_id": "cust_xyz789abc",
-      "customer_name": "PT Mitra Bisnis",
-      "monthly_fee": 250000,
+      "customer": {
+        "id": "cust_xyz789abc",
+        "name": "PT Mitra Bisnis",
+        "monthlyFee": 250000,
+        "package": {
+          "id": "pkg_abc123xyz",
+          "name": "Paket 100 Mbps"
+        }
+      },
       "payments": [
         {
           "month": 1,
-          "month_name": "January",
+          "monthName": "January",
           "paid": true,
           "amount": 250000,
-          "payment_date": "2026-01-15"
+          "paymentDate": "2026-01-15"
         },
         {
           "month": 2,
-          "month_name": "February",
+          "monthName": "February",
           "paid": true,
           "amount": 250000,
-          "payment_date": "2026-02-05"
+          "paymentDate": "2026-02-05"
         },
         {
           "month": 3,
-          "month_name": "March",
+          "monthName": "March",
           "paid": false,
           "amount": null,
-          "payment_date": null
+          "paymentDate": null
         }
       ],
-      "total_paid": 500000,
-      "total_expected": 750000,
-      "completion_percentage": 66.67
+      "totalPaid": 500000,
+      "totalExpected": 750000,
+      "completionPercentage": 66.67
     }
   ],
   "meta": {
     "total": 5,
     "page": 1,
-    "per_page": 10,
-    "total_pages": 1,
-    "has_next": false,
-    "has_prev": false
+    "perPage": 10,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
   }
 }
 ```
@@ -769,17 +799,17 @@ The response includes metadata:
   "meta": {
     "total": 100,           # Total number of items
     "page": 1,              # Current page
-    "per_page": 10,         # Items per page
-    "total_pages": 10,      # Total number of pages
-    "has_next": true,       # Is there a next page?
-    "has_prev": false       # Is there a previous page?
+    "perPage": 10,          # Items per page
+    "totalPages": 10,       # Total number of pages
+    "hasNext": true,        # Is there a next page?
+    "hasPrev": false        # Is there a previous page?
   }
 }
 ```
 
 **Example: Get page 2 with 20 items per page**
 ```
-GET /packages?page=2&per_page=20
+GET /packages?page=2&perPage=20
 ```
 
 ---
@@ -833,8 +863,8 @@ interface User {
   id: number;
   username: string;
   role: 'admin' | 'user';
-  is_active: boolean;
-  created_at: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export const useAuth = () => {
@@ -891,18 +921,18 @@ interface Package {
   name: string;
   speed: number;
   price: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface PaginationMeta {
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
-  has_next: boolean;
-  has_prev: boolean;
+  perPage: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 }
 
 export default function PackagesPage() {
@@ -1001,8 +1031,8 @@ export default function CreateCustomerPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: '',
-    package_id: '',
-    monthly_fee: '',
+    packageId: '',
+    monthlyFee: '',
   });
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1015,7 +1045,7 @@ export default function CreateCustomerPage() {
   const fetchPackages = async () => {
     try {
       const response = await apiClient.get('/packages', {
-        params: { per_page: 100 },
+        params: { perPage: 100 },
       });
       setPackages(response.data.data);
     } catch (err) {
@@ -1031,8 +1061,8 @@ export default function CreateCustomerPage() {
     try {
       await apiClient.post('/customers', {
         name: formData.name,
-        package_id: formData.package_id || null,
-        monthly_fee: parseInt(formData.monthly_fee),
+        packageId: formData.packageId || null,
+        monthlyFee: parseInt(formData.monthlyFee),
       });
       router.push('/customers');
     } catch (err: any) {
@@ -1063,9 +1093,9 @@ export default function CreateCustomerPage() {
         <div>
           <label>Package:</label>
           <select
-            value={formData.package_id}
+            value={formData.packageId}
             onChange={(e) =>
-              setFormData({ ...formData, package_id: e.target.value })
+              setFormData({ ...formData, packageId: e.target.value })
             }
           >
             <option value="">-- Select Package --</option>
@@ -1081,9 +1111,9 @@ export default function CreateCustomerPage() {
           <label>Monthly Fee (Rp):</label>
           <input
             type="number"
-            value={formData.monthly_fee}
+            value={formData.monthlyFee}
             onChange={(e) =>
-              setFormData({ ...formData, monthly_fee: e.target.value })
+              setFormData({ ...formData, monthlyFee: e.target.value })
             }
             required
           />
@@ -1107,20 +1137,28 @@ import apiClient from '@/lib/api-client';
 
 interface PaymentByMonth {
   month: number;
-  month_name: string;
+  monthName: string;
   paid: boolean;
   amount: number | null;
-  payment_date: string | null;
+  paymentDate: string | null;
+}
+
+interface CustomerInfo {
+  id: string;
+  name: string;
+  monthlyFee: number;
+  package: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface BillingRow {
-  customer_id: string;
-  customer_name: string;
-  monthly_fee: number;
+  customer: CustomerInfo;
   payments: PaymentByMonth[];
-  total_paid: number;
-  total_expected: number;
-  completion_percentage: number;
+  totalPaid: number;
+  totalExpected: number;
+  completionPercentage: number;
 }
 
 export default function BillingMatrixPage() {
@@ -1137,10 +1175,10 @@ export default function BillingMatrixPage() {
     setLoading(true);
     try {
       const response = await apiClient.get(`/billing-matrix/${year}`, {
-        params: { per_page: 100 },
+        params: { perPage: 100 },
       });
       setRows(response.data.data);
-      setMonthNames(response.data.month_names);
+      setMonthNames(response.data.monthNames);
     } catch (err) {
       console.error('Failed to fetch billing matrix:', err);
     } finally {
@@ -1173,9 +1211,9 @@ export default function BillingMatrixPage() {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.customer_id}>
-              <td>{row.customer_name}</td>
-              <td>Rp {row.monthly_fee.toLocaleString('id-ID')}</td>
+            <tr key={row.customer.id}>
+              <td>{row.customer.name}</td>
+              <td>Rp {row.customer.monthlyFee.toLocaleString('id-ID')}</td>
               {row.payments.map((payment) => (
                 <td
                   key={payment.month}
@@ -1186,18 +1224,18 @@ export default function BillingMatrixPage() {
                   {payment.paid ? '✓' : '✗'}
                 </td>
               ))}
-              <td>Rp {row.total_paid.toLocaleString('id-ID')}</td>
+              <td>Rp {row.totalPaid.toLocaleString('id-ID')}</td>
               <td>
                 <div style={{ width: '100px', backgroundColor: '#eee' }}>
                   <div
                     style={{
-                      width: `${row.completion_percentage}%`,
+                      width: `${row.completionPercentage}%`,
                       backgroundColor: '#28a745',
                       height: '20px',
                     }}
                   />
                 </div>
-                {row.completion_percentage.toFixed(1)}%
+                {row.completionPercentage.toFixed(1)}%
               </td>
             </tr>
           ))}

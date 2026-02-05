@@ -6,7 +6,8 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Optional, List
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
 
 
 class RoleEnum(str, Enum):
@@ -25,6 +26,8 @@ class UserLogin(BaseModel):
 
 class TokenResponse(BaseModel):
     """JWT token response"""
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+    
     access_token: str
     token_type: str = "bearer"
     expires_in: int
@@ -38,15 +41,14 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """User response"""
-    id: int
+    """User response with authentication details"""
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, alias_generator=to_camel)
+    
+    id: int  # User ID (integer, not sqid)
     username: str
-    role: RoleEnum
+    role: RoleEnum  # User role: admin or user
     is_active: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class SingleUserResponse(BaseModel):
@@ -78,26 +80,25 @@ class PackageUpdate(BaseModel):
 
 
 class PackageResponse(BaseModel):
-    """Package response"""
-    id: str  # sqid string, generated on-the-fly
+    """Package response with id as sqid (generated on-the-fly, not stored in DB)"""
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, alias_generator=to_camel)
+    
+    id: str  # sqid string, generated from internal id
     name: str
-    speed: int
-    price: int
+    speed: int  # Speed in Mbps
+    price: int  # Price in Rupiah
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    customers_count: Optional[int] = None  # Total number of customers using this package (optional)
 
 
 class PackageInfo(BaseModel):
     """Nested package info for customer response"""
-    id: str  # sqid string
-    name: str
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, alias_generator=to_camel)
+    
+    id: str  # sqid string, generated from internal package id
+    name: str  # Package name
 
 
 # ==================== Customer Models ====================
@@ -125,15 +126,15 @@ class CustomerUpdate(BaseModel):
 
 class CustomerResponse(BaseModel):
     """Customer response with id as sqid (generated on-the-fly, not stored in DB)"""
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, alias_generator=to_camel)
+    
     id: str  # sqid string, generated from internal id
     name: str
-    package: Optional[PackageInfo] = None  # nested package object or null
-    monthly_fee: int
+    package: Optional[PackageInfo] = None  # Nested package object or null
+    monthly_fee: int  # Monthly subscription fee in Rupiah
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    payments_count: Optional[int] = None  # Total number of payments made (optional)
 
 
 class SingleCustomerResponse(BaseModel):
@@ -144,6 +145,16 @@ class SingleCustomerResponse(BaseModel):
 class SinglePackageResponse(BaseModel):
     """Single package response wrapper"""
     data: PackageResponse
+
+
+class CustomerInfo(BaseModel):
+    """Nested customer info for payment response"""
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, alias_generator=to_camel)
+    
+    id: str  # sqid string, generated from internal customer id
+    name: str  # Customer name
+    monthly_fee: int  # Monthly subscription fee in Rupiah
+    package: Optional[PackageInfo] = None  # Nested package info or null
 
 
 # ==================== Payment Models ====================
@@ -159,18 +170,17 @@ class PaymentCreate(BaseModel):
 
 
 class PaymentResponse(BaseModel):
-    """Payment response with id as sqid (generated on-the-fly)"""
+    """Payment response with id as sqid (generated on-the-fly, not stored in DB)"""
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, alias_generator=to_camel)
+    
     id: str  # sqid string, generated from internal id
-    customer_id: str  # sqid string, generated from internal customer_id
-    payment_date: date
-    billing_month: int
-    billing_year: int
-    amount: int
+    customer: CustomerInfo  # Nested customer object with package info
+    payment_date: date  # Date when payment was made
+    billing_month: int  # Month being paid for (1-12)
+    billing_year: int  # Year being paid for
+    amount: int  # Payment amount in Rupiah
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class SinglePaymentResponse(BaseModel):
@@ -184,42 +194,48 @@ class PaymentLogParser(BaseModel):
 
 
 class PaymentByMonth(BaseModel):
-    """Payment status for a single month"""
-    month: int
-    month_name: str
-    paid: bool
-    amount: Optional[int] = None
-    payment_date: Optional[date] = None
+    """Payment status for a single month in billing matrix"""
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+    
+    month: int  # Month number (1-12)
+    month_name: str  # Full month name (e.g., "January")
+    paid: bool  # Whether payment was made for this month
+    amount: Optional[int] = None  # Payment amount if paid, null otherwise
+    payment_date: Optional[date] = None  # Payment date if paid, null otherwise
 
 
 class BillingMatrixRow(BaseModel):
-    """Row in billing matrix for a customer"""
-    customer_id: str  # sqid string, generated from internal customer_id
-    customer_name: str
-    monthly_fee: int
-    payments: List[PaymentByMonth]
-    total_paid: int
-    total_expected: int
-    completion_percentage: float
+    """Row in billing matrix showing annual payment status for a customer"""
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+    
+    customer: CustomerInfo  # Nested customer object with package info
+    payments: List[PaymentByMonth]  # Payment status for all 12 months
+    total_paid: int  # Total amount paid in the year (Rupiah)
+    total_expected: int  # Total expected for the year (monthly_fee × 12)
+    completion_percentage: float  # Percentage of expected payments completed
 
 
 class BillingMatrixResponse(BaseModel):
-    """Billing matrix response for a year"""
-    year: int
-    month_names: List[str]
-    rows: List[BillingMatrixRow]
+    """Billing matrix response showing payment overview for all customers in a year"""
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+    
+    year: int  # Billing year
+    month_names: List[str]  # List of all month names (January to December)
+    rows: List[BillingMatrixRow]  # Payment data for each customer
 
 
 # ==================== Pagination Models ====================
 
 class PaginationMeta(BaseModel):
-    """Pagination metadata"""
-    total: int = Field(..., ge=0, description="Total number of items")
-    page: int = Field(..., ge=1, description="Current page number")
-    per_page: int = Field(..., ge=1, le=100, description="Items per page")
-    total_pages: int = Field(..., ge=0, description="Total number of pages")
-    has_next: bool = Field(..., description="Whether there's a next page")
-    has_prev: bool = Field(..., description="Whether there's a previous page")
+    """Pagination metadata for list responses"""
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+    
+    total: int = Field(..., ge=0, description="Total number of items across all pages")
+    page: int = Field(..., ge=1, description="Current page number (1-indexed)")
+    per_page: int = Field(..., ge=1, le=100, description="Number of items per page")
+    total_pages: int = Field(..., ge=0, description="Total number of pages available")
+    has_next: bool = Field(..., description="Whether there's a next page available")
+    has_prev: bool = Field(..., description="Whether there's a previous page available")
 
 
 class PaginatedPackageResponse(BaseModel):
