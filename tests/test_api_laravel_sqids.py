@@ -9,7 +9,7 @@ import json
 from datetime import date
 
 # API Configuration
-BASE_URL = "http://127.0.0.1:8000/api/v1"
+BASE_URL = "http://127.0.0.1:8001/api/v1"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 
@@ -59,7 +59,7 @@ def test_packages(token):
     response = requests.post(f"{BASE_URL}/packages", json=package_data, headers=headers)
     
     if response.status_code == 201:
-        package = response.json()
+        package = response.json()["data"]
         package_id = package["id"]
         print_success(f"Package created: {package_id}")
         print_info(f"  Prefix check: {package_id[:5] == 'pack_'}")
@@ -68,7 +68,7 @@ def test_packages(token):
         # List packages
         response = requests.get(f"{BASE_URL}/packages", headers=headers)
         if response.status_code == 200:
-            packages = response.json()
+            packages = response.json().get("data", [])
             print_success(f"Retrieved {len(packages)} packages")
             for pkg in packages[:3]:
                 print_info(f"  - {pkg['name']}: {pkg['id']}")
@@ -99,18 +99,19 @@ def test_customers(token, package_id):
     response = requests.post(f"{BASE_URL}/customers", json=customer_data, headers=headers)
     
     if response.status_code == 201:
-        customer = response.json()
+        customer = response.json()["data"]
         customer_id = customer["id"]
         print_success(f"Customer created: {customer_id}")
         print_info(f"  Prefix check: {customer_id[:5] == 'cust_'}")
         print_info(f"  Format: {customer_id}")
-        print_info(f"  Package ID: {customer['package_id']}")
-        print_info(f"  Package prefix check: {customer['package_id'][:5] == 'pack_'}")
+        if customer.get("package"):
+            print_info(f"  Package ID: {customer['package']['id']}")
+            print_info(f"  Package prefix check: {customer['package']['id'][:5] == 'pack_'}")
         
         # List customers
         response = requests.get(f"{BASE_URL}/customers", headers=headers)
         if response.status_code == 200:
-            customers = response.json()
+            customers = response.json().get("data", [])
             print_success(f"Retrieved {len(customers)} customers")
             for cust in customers[:3]:
                 print_info(f"  - {cust['name']}: {cust['id']}")
@@ -149,7 +150,7 @@ def test_payments(token, customer_id):
     response = requests.post(f"{BASE_URL}/payments", json=payment_data, headers=headers)
     
     if response.status_code == 201:
-        payment = response.json()
+        payment = response.json()["data"]
         payment_id = payment["id"]
         print_success(f"Payment created: {payment_id}")
         print_info(f"  Prefix check: {payment_id[:4] == 'pay_'}")
@@ -160,7 +161,7 @@ def test_payments(token, customer_id):
         # List payments
         response = requests.get(f"{BASE_URL}/payments", headers=headers)
         if response.status_code == 200:
-            payments = response.json()
+            payments = response.json().get("data", [])
             print_success(f"Retrieved {len(payments)} payments")
             for pay in payments[:3]:
                 print_info(f"  - Payment {pay['id'][:20]}... for customer {pay['customer_id'][:20]}...")
@@ -180,11 +181,12 @@ def test_billing_matrix(token):
     
     if response.status_code == 200:
         matrix = response.json()
+        rows = matrix.get("data", [])
         print_success(f"Retrieved billing matrix for {matrix['year']}")
-        print_info(f"  Total customers: {len(matrix['rows'])}")
+        print_info(f"  Total customers: {len(rows)}")
         
-        if matrix['rows']:
-            for row in matrix['rows'][:3]:
+        if rows:
+            for row in rows[:3]:
                 customer_id = row['customer_id']
                 print_info(f"  - {row['customer_name']}: {customer_id}")
                 print_info(f"    Prefix check: {customer_id[:5] == 'cust_'}")

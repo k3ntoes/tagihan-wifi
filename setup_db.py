@@ -42,40 +42,78 @@ def create_admin_user(db: Database, username: str, password: str):
         return False
 
 
-def add_sample_customer(db: Database, name: str, monthly_fee: int):
+def add_sample_customer(db: Database, name: str, monthly_fee: int, package_id: int | None = None):
     """Add a sample customer."""
     try:
-        from app.utils.sqids_helper import get_sqids_helper
-
-        sqids_helper = get_sqids_helper()
-
         result = db.conn.execute(
             """
-            INSERT INTO customers (name, monthly_fee, sqid)
+            INSERT INTO customers (name, package_id, monthly_fee)
             VALUES (?, ?, ?)
-            RETURNING id, sqid, name, monthly_fee
+            RETURNING id, name, package_id, monthly_fee
             """,
-            [name, monthly_fee, "temp"],
+            [name, package_id, monthly_fee],
         ).fetchall()
 
         if result:
             customer = result[0]
-            customer_id = customer[0]
-
-            # Generate sqid
-            sqid_value = sqids_helper.encode_single(customer_id)
-
-            # Update with actual sqid
-            db.conn.execute(
-                "UPDATE customers SET sqid = ? WHERE id = ?",
-                [sqid_value, customer_id],
-            )
             db.conn.commit()
-
-            print(f"✓ Customer created: {customer[2]} (sqid: {sqid_value}, fee: Rp{monthly_fee:,})")
+            print(f"✓ Customer created: {customer[1]} (fee: Rp{monthly_fee:,}, package_id: {customer[2]})")
             return True
     except Exception as e:
         print(f"✗ Error creating customer: {e}")
+        return False
+
+
+def add_sample_package(db: Database, name: str, speed: int, price: int) -> int | None:
+    """Add a sample package. Returns package ID if created or found."""
+    try:
+        existing = db.conn.execute(
+            "SELECT id FROM packages WHERE name = ?",
+            [name],
+        ).fetchone()
+
+        if existing:
+            return existing[0]
+
+        result = db.conn.execute(
+            """
+            INSERT INTO packages (name, speed, price)
+            VALUES (?, ?, ?)
+            RETURNING id
+            """,
+            [name, speed, price],
+        ).fetchone()
+
+        if result:
+            db.conn.commit()
+            print(f"✓ Package created: {name} ({speed} Mbps, Rp{price:,})")
+            return result[0]
+    except Exception as e:
+        print(f"✗ Error creating package: {e}")
+        return None
+
+
+def update_sample_customer(db: Database, name: str, package_id: int | None, monthly_fee: int):
+    """Update a sample customer with package assignment and monthly fee."""
+    try:
+        result = db.conn.execute(
+            """
+            UPDATE customers
+            SET package_id = ?, monthly_fee = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE name = ?
+            RETURNING id, name, package_id, monthly_fee
+            """,
+            [package_id, monthly_fee, name],
+        ).fetchone()
+
+        if result:
+            db.conn.commit()
+            print(f"✓ Customer updated: {result[1]} (fee: Rp{result[3]:,}, package_id: {result[2]})")
+            return True
+        print(f"✗ Customer not found for update: {name}")
+        return False
+    except Exception as e:
+        print(f"✗ Error updating customer: {e}")
         return False
 
 
@@ -124,14 +162,22 @@ def main():
                         create_admin_user(db, username, password)
 
         if add_samples:
+            sample_packages = [
+                ("Paket 20 Mbps", 20, 150000),
+                ("Paket 50 Mbps", 50, 200000),
+                ("Paket 100 Mbps", 100, 275000),
+            ]
+            package_ids = [add_sample_package(db, name, speed, price) for name, speed, price in sample_packages]
+
             sample_customers = [
-                ("Opi", 150000),
-                ("Budi", 200000),
-                ("Siti", 175000),
+                ("Opi", 150000, package_ids[0]),
+                ("Budi", 200000, package_ids[1]),
+                ("Siti", 175000, package_ids[2]),
             ]
 
-            for name, fee in sample_customers:
-                add_sample_customer(db, name, fee)
+            for name, fee, pkg_id in sample_customers:
+                add_sample_customer(db, name, fee, pkg_id)
+                update_sample_customer(db, name, pkg_id, fee)
         else:
             print("Skipping sample customers.")
 
@@ -172,14 +218,22 @@ def main():
     add_samples = input("Add sample customers? (y/n): ").strip().lower() == "y"
 
     if add_samples:
+        sample_packages = [
+            ("Paket 20 Mbps", 20, 150000),
+            ("Paket 50 Mbps", 50, 200000),
+            ("Paket 100 Mbps", 100, 275000),
+        ]
+        package_ids = [add_sample_package(db, name, speed, price) for name, speed, price in sample_packages]
+
         sample_customers = [
-            ("Opi", 150000),
-            ("Budi", 200000),
-            ("Siti", 175000),
+            ("Opi", 150000, package_ids[0]),
+            ("Budi", 200000, package_ids[1]),
+            ("Siti", 175000, package_ids[2]),
         ]
 
-        for name, fee in sample_customers:
-            add_sample_customer(db, name, fee)
+        for name, fee, pkg_id in sample_customers:
+            add_sample_customer(db, name, fee, pkg_id)
+            update_sample_customer(db, name, pkg_id, fee)
 
     # Summary
     print("\n" + "=" * 60)

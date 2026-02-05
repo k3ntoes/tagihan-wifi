@@ -7,20 +7,20 @@ Endpoints:
 - POST /payments/parse-log - Parse manual payment log entry (admin only)
 """
 
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 
 from app.core.auth import get_current_user, require_role
 from app.db.database import Database, get_db
-from app.schemas import PaymentCreate, PaymentResponse, PaymentLogParser, PaginatedPaymentResponse, PaginationMeta
+from app.schemas import PaymentCreate, PaymentResponse, SinglePaymentResponse, PaymentLogParser, PaginatedPaymentResponse, PaginationMeta
 from app.utils.payment_parser import parse_payment_log
 from app.utils.sqids_helper import get_sqids_helper
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 
-@router.post("", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SinglePaymentResponse, status_code=status.HTTP_201_CREATED)
 async def create_payment(
     payment_data: PaymentCreate,
     db: Database = Depends(get_db),
@@ -73,7 +73,7 @@ async def create_payment(
         if not customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Customer not found",
+                detail="Customer not found",
             )
 
         # Insert payment
@@ -108,7 +108,7 @@ async def create_payment(
         payment_sqid = sqids_helper.encode_with_prefix(payment_id, 'payment')
         customer_sqid = sqids_helper.encode_with_prefix(customer_id, 'customer')
         
-        return PaymentResponse(
+        payment = PaymentResponse(
             id=payment_sqid,
             customer_id=customer_sqid,
             payment_date=row[2],
@@ -118,6 +118,7 @@ async def create_payment(
             created_at=row[6],
             updated_at=row[7],
         )
+        return SinglePaymentResponse(data=payment)
 
     except HTTPException:
         raise
@@ -126,7 +127,7 @@ async def create_payment(
         if "UNIQUE constraint failed" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Payment already exists for this customer and month/year",
+                detail="Payment already exists for this customer and month/year",
             )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -271,7 +272,7 @@ async def list_payments(
         )
 
 
-@router.post("/parse-log", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/parse-log", response_model=SinglePaymentResponse, status_code=status.HTTP_201_CREATED)
 async def parse_payment_log_endpoint(
     log_data: PaymentLogParser,
     db: Database = Depends(get_db),
@@ -343,9 +344,9 @@ async def parse_payment_log_endpoint(
         payment_sqid = sqids_helper.encode_with_prefix(payment_id, 'payment')
         customer_sqid = sqids_helper.encode_with_prefix(customer_id, 'customer')
         
-        return PaymentResponse(
-            sqid=payment_sqid,
-            customer_sqid=customer_sqid,
+        payment = PaymentResponse(
+            id=payment_sqid,
+            customer_id=customer_sqid,
             payment_date=row[2],
             billing_month=row[3],
             billing_year=row[4],
@@ -353,6 +354,7 @@ async def parse_payment_log_endpoint(
             created_at=row[6],
             updated_at=row[7],
         )
+        return SinglePaymentResponse(data=payment)
 
     except HTTPException:
         raise

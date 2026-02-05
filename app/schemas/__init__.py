@@ -49,6 +49,11 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class SingleUserResponse(BaseModel):
+    """Single user response wrapper"""
+    data: UserResponse
+
+
 # ==================== Package Models ====================
 
 class PackageCreate(BaseModel):
@@ -86,6 +91,15 @@ class PackageResponse(BaseModel):
         from_attributes = True
 
 
+class PackageInfo(BaseModel):
+    """Nested package info for customer response"""
+    id: str  # sqid string
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== Customer Models ====================
 
 class CustomerCreate(BaseModel):
@@ -113,14 +127,23 @@ class CustomerResponse(BaseModel):
     """Customer response with id as sqid (generated on-the-fly, not stored in DB)"""
     id: str  # sqid string, generated from internal id
     name: str
-    package_id: Optional[str] = None  # sqid string or null
-    package_name: Optional[str] = None
+    package: Optional[PackageInfo] = None  # nested package object or null
     monthly_fee: int
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class SingleCustomerResponse(BaseModel):
+    """Single customer response wrapper"""
+    data: CustomerResponse
+
+
+class SinglePackageResponse(BaseModel):
+    """Single package response wrapper"""
+    data: PackageResponse
 
 
 # ==================== Payment Models ====================
@@ -148,6 +171,11 @@ class PaymentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SinglePaymentResponse(BaseModel):
+    """Single payment response wrapper"""
+    data: PaymentResponse
 
 
 class PaymentLogParser(BaseModel):

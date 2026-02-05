@@ -7,7 +7,7 @@ Demonstrates filtering capabilities on all list endpoints.
 import requests
 import json
 
-BASE_URL = "http://127.0.0.1:8000/api/v1"
+BASE_URL = "http://127.0.0.1:8001/api/v1"
 
 def print_section(title):
     print("\n" + "="*70)
@@ -32,7 +32,7 @@ def test_customer_filters(token):
     print("\n1. All customers:")
     response = requests.get(f"{BASE_URL}/customers", headers=headers)
     if response.status_code == 200:
-        customers = response.json()
+        customers = response.json().get("data", [])
         print(f"   Total: {len(customers)} customers")
         for c in customers[:3]:
             print(f"   - {c['name']} (ID: {c['id'][:20]}...)")
@@ -45,7 +45,7 @@ def test_customer_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        customers = response.json()
+        customers = response.json().get("data", [])
         print(f"   Found: {len(customers)} customers")
         for c in customers[:5]:
             print(f"   - {c['name']}")
@@ -58,14 +58,14 @@ def test_customer_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        customers = response.json()
+        customers = response.json().get("data", [])
         print(f"   Found: {len(customers)} customers")
     
     # 4. Filter by package_id
     print("\n4. Get packages to filter customers:")
     response = requests.get(f"{BASE_URL}/packages", headers=headers)
-    if response.status_code == 200 and response.json():
-        package = response.json()[0]
+    if response.status_code == 200 and response.json().get("data"):
+        package = response.json()["data"][0]
         package_id = package['id']
         print(f"   Using package: {package['name']} (ID: {package_id})")
         
@@ -76,10 +76,11 @@ def test_customer_filters(token):
             headers=headers
         )
         if response.status_code == 200:
-            customers = response.json()
+            customers = response.json().get("data", [])
             print(f"   Found: {len(customers)} customers with this package")
             for c in customers[:5]:
-                print(f"   - {c['name']} → {c['package_name']}")
+                package_name = c["package"]["name"] if c.get("package") else "-"
+                print(f"   - {c['name']} → {package_name}")
     
     # 5. Combined filters
     print("\n5. Combined filters (name + package_id):")
@@ -90,7 +91,7 @@ def test_customer_filters(token):
             headers=headers
         )
         if response.status_code == 200:
-            customers = response.json()
+            customers = response.json().get("data", [])
             print(f"   Found: {len(customers)} customers matching both filters")
 
 def test_package_filters(token):
@@ -103,7 +104,7 @@ def test_package_filters(token):
     print("\n1. All packages:")
     response = requests.get(f"{BASE_URL}/packages", headers=headers)
     if response.status_code == 200:
-        packages = response.json()
+        packages = response.json().get("data", [])
         print(f"   Total: {len(packages)} packages")
         for p in packages[:3]:
             print(f"   - {p['name']}: {p['speed']}Mbps @ Rp{p['price']:,}")
@@ -116,7 +117,7 @@ def test_package_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        packages = response.json()
+        packages = response.json().get("data", [])
         print(f"   Found: {len(packages)} packages")
         for p in packages:
             print(f"   - {p['name']}")
@@ -129,7 +130,7 @@ def test_package_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        packages = response.json()
+        packages = response.json().get("data", [])
         print(f"   Found: {len(packages)} packages")
         for p in packages:
             print(f"   - {p['name']}: {p['speed']}Mbps")
@@ -142,7 +143,7 @@ def test_package_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        packages = response.json()
+        packages = response.json().get("data", [])
         print(f"   Found: {len(packages)} packages")
         for p in packages:
             print(f"   - {p['name']}: Rp{p['price']:,}")
@@ -155,7 +156,7 @@ def test_package_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        packages = response.json()
+        packages = response.json().get("data", [])
         print(f"   Found: {len(packages)} packages")
     
     # 6. Include inactive packages
@@ -166,7 +167,7 @@ def test_package_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        packages = response.json()
+        packages = response.json().get("data", [])
         active_count = sum(1 for p in packages if p['is_active'])
         inactive_count = sum(1 for p in packages if not p['is_active'])
         print(f"   Total: {len(packages)} packages")
@@ -186,7 +187,7 @@ def test_payment_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        payments = response.json()
+        payments = response.json().get("data", [])
         print(f"   Found: {len(payments)} payments in 2026")
     
     # 2. Filter by month and year
@@ -197,14 +198,14 @@ def test_payment_filters(token):
         headers=headers
     )
     if response.status_code == 200:
-        payments = response.json()
+        payments = response.json().get("data", [])
         print(f"   Found: {len(payments)} payments in January 2026")
     
     # 3. Filter by customer_id
     print("\n3. Get a customer to filter payments:")
     response = requests.get(f"{BASE_URL}/customers", headers=headers)
-    if response.status_code == 200 and response.json():
-        customer = response.json()[0]
+    if response.status_code == 200 and response.json().get("data"):
+        customer = response.json()["data"][0]
         customer_id = customer['id']
         print(f"   Using customer: {customer['name']} (ID: {customer_id[:20]}...)")
         
@@ -214,7 +215,7 @@ def test_payment_filters(token):
             headers=headers
         )
         if response.status_code == 200:
-            payments = response.json()
+            payments = response.json().get("data", [])
             print(f"   Found: {len(payments)} payments for this customer")
 
 def test_billing_matrix_filters(token):
@@ -228,7 +229,8 @@ def test_billing_matrix_filters(token):
     response = requests.get(f"{BASE_URL}/billing-matrix/2026", headers=headers)
     if response.status_code == 200:
         matrix = response.json()
-        print(f"   Total customers: {len(matrix['rows'])}")
+        rows = matrix.get("data", [])
+        print(f"   Total customers: {len(rows)}")
     
     # 2. Filter by customer_name
     print("\n2. Filter by customer name (customer_name='test'):")
@@ -239,15 +241,16 @@ def test_billing_matrix_filters(token):
     )
     if response.status_code == 200:
         matrix = response.json()
-        print(f"   Found: {len(matrix['rows'])} customers")
-        for row in matrix['rows'][:3]:
+        rows = matrix.get("data", [])
+        print(f"   Found: {len(rows)} customers")
+        for row in rows[:3]:
             print(f"   - {row['customer_name']}: {row['completion_percentage']:.1f}% complete")
     
     # 3. Filter by specific customer_id
     print("\n3. Filter by specific customer_id:")
     response = requests.get(f"{BASE_URL}/customers", headers=headers)
-    if response.status_code == 200 and response.json():
-        customer = response.json()[0]
+    if response.status_code == 200 and response.json().get("data"):
+        customer = response.json()["data"][0]
         customer_id = customer['id']
         print(f"   Using customer: {customer['name']} (ID: {customer_id[:20]}...)")
         

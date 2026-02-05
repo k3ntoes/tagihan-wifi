@@ -15,13 +15,13 @@ from fastapi import APIRouter, Depends, status, HTTPException, Query
 
 from app.core.auth import get_current_user, require_role
 from app.db.database import Database, get_db
-from app.schemas import PackageCreate, PackageUpdate, PackageResponse, PaginatedPackageResponse, PaginationMeta
+from app.schemas import PackageCreate, PackageUpdate, PackageResponse, SinglePackageResponse, PaginatedPackageResponse, PaginationMeta
 from app.utils.sqids_helper import get_sqids_helper
 
 router = APIRouter(prefix="/packages", tags=["packages"])
 
 
-@router.post("", response_model=PackageResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SinglePackageResponse, status_code=status.HTTP_201_CREATED)
 async def create_package(
     package_data: PackageCreate,
     db: Database = Depends(get_db),
@@ -73,7 +73,7 @@ async def create_package(
 
         db.conn.commit()
 
-        return PackageResponse(
+        package = PackageResponse(
             id=result[0],
             name=result[1],
             speed=result[2],
@@ -82,6 +82,7 @@ async def create_package(
             created_at=result[5],
             updated_at=result[6],
         )
+        return SinglePackageResponse(data=package)
 
     except HTTPException:
         db.conn.rollback()
@@ -225,7 +226,7 @@ async def list_packages(
         )
 
 
-@router.get("/{package_id}", response_model=PackageResponse)
+@router.get("/{package_id}", response_model=SinglePackageResponse)
 async def get_package(
     package_id: str,
     db: Database = Depends(get_db),
@@ -275,7 +276,7 @@ async def get_package(
                 detail=f"Package with ID {package_id} not found",
             )
 
-        return PackageResponse(
+        package = PackageResponse(
             id=package_id,
             name=result[1],
             speed=result[2],
@@ -284,6 +285,7 @@ async def get_package(
             created_at=result[5],
             updated_at=result[6],
         )
+        return SinglePackageResponse(data=package)
 
     except HTTPException:
         raise
@@ -294,7 +296,7 @@ async def get_package(
         )
 
 
-@router.put("/{package_id}", response_model=PackageResponse)
+@router.put("/{package_id}", response_model=SinglePackageResponse)
 async def update_package(
     package_id: str,
     package_data: PackageUpdate,
@@ -399,7 +401,7 @@ async def update_package(
 
         db.conn.commit()
 
-        return PackageResponse(
+        package = PackageResponse(
             id=package_id,
             name=result[1],
             speed=result[2],
@@ -408,6 +410,7 @@ async def update_package(
             created_at=result[5],
             updated_at=result[6],
         )
+        return SinglePackageResponse(data=package)
 
     except HTTPException:
         db.conn.rollback()

@@ -15,13 +15,17 @@ from fastapi import APIRouter, Depends, status, HTTPException, Query
 
 from app.core.auth import get_current_user, require_role
 from app.db.database import Database, get_db
-from app.schemas import CustomerCreate, CustomerUpdate, CustomerResponse, PaginatedCustomerResponse, PaginationMeta
+from app.schemas import (
+    CustomerCreate, CustomerUpdate, CustomerResponse, 
+    PaginatedCustomerResponse, PaginationMeta,
+    PackageInfo, SingleCustomerResponse
+)
 from app.utils.sqids_helper import get_sqids_helper
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 
-@router.post("", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SingleCustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     customer_data: CustomerCreate,
     db: Database = Depends(get_db),
@@ -31,6 +35,7 @@ async def create_customer(
     Create a new customer (admin only).
 
     Generates sqid on-the-fly from customer ID (not stored in DB).
+    Returns customer with nested package object.
     """
     try:
         sqids_helper = get_sqids_helper()
@@ -83,27 +88,27 @@ async def create_customer(
         # Generate sqid on-the-fly from ID with Laravel-style prefix
         customer_sqid = sqids_helper.encode_with_prefix(customer_id, 'customer')
         
-        # Get package name and sqid if package_id is set
-        package_name = None
-        package_sqid = None
+        # Get package info if package_id is set
+        package_info = None
         if customer_row[2] is not None:
             pkg = db.conn.execute(
                 "SELECT name FROM packages WHERE id = ?",
                 [customer_row[2]],
             ).fetchone()
             if pkg:
-                package_name = pkg[0]
                 package_sqid = sqids_helper.encode_with_prefix(customer_row[2], 'package')
+                package_info = PackageInfo(id=package_sqid, name=pkg[0])
 
-        return CustomerResponse(
+        customer_response = CustomerResponse(
             id=customer_sqid,
             name=customer_row[1],
-            package_id=package_sqid,
-            package_name=package_name,
+            package=package_info,
             monthly_fee=customer_row[3],
             created_at=customer_row[4],
             updated_at=customer_row[5],
         )
+        
+        return SingleCustomerResponse(data=customer_response)
 
     except ValueError as e:
         db.conn.rollback()
@@ -209,18 +214,21 @@ async def list_customers(
         
         result = db.conn.execute(query, params).fetchall()
 
-        data = [
-            CustomerResponse(
+        data = []
+        for row in result:
+            package_info = None
+            if row[2] is not None and row[3] is not None:
+                package_sqid = sqids_helper.encode_with_prefix(row[2], 'package')
+                package_info = PackageInfo(id=package_sqid, name=row[3])
+            
+            data.append(CustomerResponse(
                 id=sqids_helper.encode_with_prefix(row[0], 'customer'),
                 name=row[1],
-                package_id=sqids_helper.encode_with_prefix(row[2], 'package') if row[2] is not None else None,
-                package_name=row[3],
+                package=package_info,
                 monthly_fee=row[4],
                 created_at=row[5],
                 updated_at=row[6],
-            )
-            for row in result
-        ]
+            ))
         
         meta = PaginationMeta(
             total=total,
@@ -240,7 +248,7 @@ async def list_customers(
         )
 
 
-@router.get("/{customer_id}", response_model=CustomerResponse)
+@router.get("/{customer_id}", response_model=SingleCustomerResponse)
 async def get_customer(
     customer_id: str,
     db: Database = Depends(get_db),
@@ -249,7 +257,7 @@ async def get_customer(
     """
     Get customer by ID (sqid).
 
-    Decodes sqid to get customer_id, then returns customer details.
+    Decodes sqid to get customer_id, then returns customer details with nested package object.
     """
     try:
         sqids_helper = get_sqids_helper()
@@ -281,15 +289,23 @@ async def get_customer(
             )
 
         row = result[0]
-        return CustomerResponse(
+        
+        # Get package info if package_id is set
+        package_info = None
+        if row[2] is not None and row[3] is not None:
+            package_sqid = sqids_helper.encode_with_prefix(row[2], 'package')
+            package_info = PackageInfo(id=package_sqid, name=row[3])
+        
+        customer_response = CustomerResponse(
             id=customer_id,
             name=row[1],
-            package_id=sqids_helper.encode_with_prefix(row[2], 'package') if row[2] is not None else None,
-            package_name=row[3],
+            package=package_info,
             monthly_fee=row[4],
             created_at=row[5],
             updated_at=row[6],
         )
+        
+        return SingleCustomerResponse(data=customer_response)
 
     except HTTPException:
         raise
@@ -300,7 +316,7 @@ async def get_customer(
         )
 
 
-@router.patch("/{customer_id}", response_model=CustomerResponse)
+@router.patch("/{customer_id}", response_model=SingleCustomerResponse)
 async def update_customer(
     customer_id: str,
     update_data: CustomerUpdate,
@@ -311,6 +327,7 @@ async def update_customer(
     Update customer (admin only).
 
     Can update name, package_id (as sqid), and/or monthly_fee.
+    Returns customer with nested package object.
     """
     try:
         sqids_helper = get_sqids_helper()
@@ -398,27 +415,27 @@ async def update_customer(
 
         row = result[0]
         
-        # Get package name and sqid if package_id is set
-        package_name = None
-        package_sqid = None
+        # Get package info if package_id is set
+        package_info = None
         if row[2] is not None:
             pkg = db.conn.execute(
                 "SELECT name FROM packages WHERE id = ?",
                 [row[2]],
             ).fetchone()
             if pkg:
-                package_name = pkg[0]
                 package_sqid = sqids_helper.encode_with_prefix(row[2], 'package')
+                package_info = PackageInfo(id=package_sqid, name=pkg[0])
         
-        return CustomerResponse(
+        customer_response = CustomerResponse(
             id=customer_id,
             name=row[1],
-            package_id=package_sqid,
-            package_name=package_name,
+            package=package_info,
             monthly_fee=row[3],
             created_at=row[4],
             updated_at=row[5],
         )
+        
+        return SingleCustomerResponse(data=customer_response)
 
     except HTTPException:
         raise
