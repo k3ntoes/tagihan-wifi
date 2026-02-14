@@ -56,6 +56,20 @@ class SingleUserResponse(BaseModel):
     data: UserResponse
 
 
+class PasswordChange(BaseModel):
+    """Change password request"""
+    old_password: str = Field(..., min_length=6)
+    new_password: str = Field(..., min_length=6)
+
+
+class UserUpdateAdmin(BaseModel):
+    """Update user request (admin only)"""
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    password: Optional[str] = Field(None, min_length=6)
+    role: Optional[RoleEnum] = None
+    is_active: Optional[bool] = None
+
+
 # ==================== Package Models ====================
 
 class PackageCreate(BaseModel):
@@ -261,6 +275,12 @@ class PaginatedBillingMatrixResponse(BaseModel):
     year: int
     month_names: List[str]
     data: List[BillingMatrixRow]
+    meta: PaginationMeta
+
+
+class PaginatedUserResponse(BaseModel):
+    """Paginated users response"""
+    data: List[UserResponse]
     meta: PaginationMeta
 
 

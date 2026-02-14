@@ -136,6 +136,16 @@ class AuthService:
         return TokenManager.create_access_token(user_data[0], user_data[1], user_data[2])
 
     @staticmethod
+    def hash_password(password: str) -> str:
+        """Hash password"""
+        return PasswordManager.hash_password(password)
+
+    @staticmethod
+    def verify_password(password: str, password_hash: str) -> bool:
+        """Verify password against hash"""
+        return PasswordManager.verify_password(password, password_hash)
+
+    @staticmethod
     def get_current_user(token: str) -> dict:
         """Get current user from token"""
         payload = TokenManager.verify_token(token)

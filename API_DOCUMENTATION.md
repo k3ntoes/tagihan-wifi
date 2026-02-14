@@ -202,12 +202,230 @@ Get current user information.
 - **Headers:** `Authorization: Bearer <token>`
 - **Error:** 401 (Unauthorized)
 
+#### POST /auth/change-password
+Change current user password.
+- **Status:** 200
+- **Headers:** `Authorization: Bearer <token>`
+- **Error:** 400 (Old password incorrect), 401 (Unauthorized), 404 (User not found)
+
+#### GET /auth/users
+List all users (admin only).
+- **Status:** 200
+- **Headers:** `Authorization: Bearer <admin_token>`
+- **Requires:** `role: "admin"`
+- **Error:** 401 (Unauthorized), 403 (Forbidden)
+
+#### GET /auth/users/{user_id}
+Get specific user (admin only).
+- **Status:** 200
+- **Headers:** `Authorization: Bearer <admin_token>`
+- **Requires:** `role: "admin"`
+- **Error:** 401 (Unauthorized), 403 (Forbidden), 404 (Not found)
+
+#### PATCH /auth/users/{user_id}
+Update user (admin only).
+- **Status:** 200
+- **Headers:** `Authorization: Bearer <admin_token>`
+- **Requires:** `role: "admin"`
+- **Error:** 400 (Invalid input), 401 (Unauthorized), 403 (Forbidden), 404 (Not found)
+
+#### DELETE /auth/users/{user_id}
+Delete user (admin only).
+- **Status:** 204
+- **Headers:** `Authorization: Bearer <admin_token>`
+- **Requires:** `role: "admin"`
+- **Error:** 400 (Cannot delete own account), 401 (Unauthorized), 403 (Forbidden), 404 (Not found)
+
 #### POST /auth/register
 Register new user (admin only).
 - **Status:** 201
 - **Headers:** `Authorization: Bearer <admin_token>`
 - **Requires:** `role: "admin"`
-- **Error:** 400 (Invalid input), 403 (Forbidden)
+- **Error:** 400 (Invalid input), 403 (Forbidden), 409 (Username already exists)
+
+---
+
+## Detailed Auth Endpoints Documentation
+
+### POST /auth/change-password
+Change current user password.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "old_password": "oldpass123",
+  "new_password": "newpass456"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "id": 1,
+    "username": "admin",
+    "role": "admin",
+    "isActive": true,
+    "createdAt": "2026-02-05T10:00:00"
+  }
+}
+```
+
+**Errors:**
+- 400: Old password is incorrect
+- 401: Unauthorized
+- 404: User not found
+
+---
+
+### GET /auth/users
+List all users (admin only).
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+```
+
+**Query Parameters:**
+```
+page=1                   # Page number (default: 1)
+per_page=10              # Items per page (default: 10, max: 100)
+```
+
+**Response (200 OK):**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "username": "admin",
+      "role": "admin",
+      "isActive": true,
+      "createdAt": "2026-02-05T10:00:00"
+    },
+    {
+      "id": 2,
+      "username": "user1",
+      "role": "user",
+      "isActive": true,
+      "createdAt": "2026-02-05T10:30:00"
+    }
+  ],
+  "meta": {
+    "total": 2,
+    "page": 1,
+    "perPage": 10,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
+  }
+}
+```
+
+**Errors:**
+- 401: Unauthorized
+- 403: Forbidden (not admin)
+
+---
+
+### GET /auth/users/{user_id}
+Get specific user (admin only).
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+```
+
+**URL Parameters:**
+- `user_id`: User ID (integer)
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "id": 2,
+    "username": "user1",
+    "role": "user",
+    "isActive": true,
+    "createdAt": "2026-02-05T10:30:00"
+  }
+}
+```
+
+**Errors:**
+- 401: Unauthorized
+- 403: Forbidden (not admin)
+- 404: User not found
+
+---
+
+### PATCH /auth/users/{user_id}
+Update user (admin only).
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+```
+
+**URL Parameters:**
+- `user_id`: User ID (integer)
+
+**Request (all fields optional):**
+```json
+{
+  "username": "updated_user",
+  "password": "newpass123",
+  "role": "admin",
+  "is_active": false
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "id": 2,
+    "username": "updated_user",
+    "role": "admin",
+    "isActive": false,
+    "createdAt": "2026-02-05T10:30:00"
+  }
+}
+```
+
+**Errors:**
+- 400: Username already exists or invalid input
+- 401: Unauthorized
+- 403: Forbidden (not admin)
+- 404: User not found
+
+---
+
+### DELETE /auth/users/{user_id}
+Delete user (admin only).
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+```
+
+**URL Parameters:**
+- `user_id`: User ID (integer)
+
+**Response (204 No Content)**
+
+**Errors:**
+- 400: Cannot delete your own account
+- 401: Unauthorized
+- 403: Forbidden (not admin)
+- 404: User not found
 
 ---
 
@@ -952,7 +1170,156 @@ export const useAuth = () => {
 };
 ```
 
-### 3. Fetch Packages
+### 3. User Management (Admin Only)
+
+**pages/admin/users.tsx:**
+```typescript
+import { useState, useEffect } from 'react';
+import apiClient from '@/lib/api-client';
+
+interface User {
+  id: number;
+  username: string;
+  role: 'admin' | 'user';
+  isActive: boolean;
+  createdAt: string;
+}
+
+export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [page]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await apiClient.get('/auth/users', {
+        params: { page, per_page: 10 },
+      });
+      setUsers(response.data.data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm('Delete this user?')) return;
+    try {
+      await apiClient.delete(`/auth/users/${userId}`);
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to delete user');
+    }
+  };
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h1>User Management</h1>
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.id}>
+              <td>{user.username}</td>
+              <td>{user.role}</td>
+              <td>{user.isActive ? 'Active' : 'Inactive'}</td>
+              <td>
+                <button onClick={() => handleDeleteUser(user.id)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+### 4. Change Password
+
+**pages/auth/change-password.tsx:**
+```typescript
+import { useState } from 'react';
+import apiClient from '@/lib/api-client';
+
+export default function ChangePasswordPage() {
+  const [formData, setFormData] = useState({
+    old_password: '',
+    new_password: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      await apiClient.post('/auth/change-password', {
+        old_password: formData.old_password,
+        new_password: formData.new_password,
+      });
+      setSuccess(true);
+      setFormData({ old_password: '', new_password: '' });
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h1>Change Password</h1>
+      {success && <div style={{ color: 'green' }}>Password changed successfully!</div>}
+
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label>Old Password:</label>
+          <input
+            type="password"
+            value={formData.old_password}
+            onChange={(e) =>
+              setFormData({ ...formData, old_password: e.target.value })
+            }
+            required
+          />
+        </div>
+
+        <div>
+          <label>New Password:</label>
+          <input
+            type="password"
+            value={formData.new_password}
+            onChange={(e) =>
+              setFormData({ ...formData, new_password: e.target.value })
+            }
+            required
+          />
+        </div>
+
+        <button type="submit" disabled={loading}>
+          {loading ? 'Changing...' : 'Change Password'}
+        </button>
+      </form>
+    </div>
+  );
+}
+```
+
+### 5. Fetch Packages
 
 **pages/packages.tsx:**
 ```typescript
@@ -1057,7 +1424,7 @@ export default function PackagesPage() {
 }
 ```
 
-### 4. Create Customer
+### 6. Create Customer
 
 **pages/customers/create.tsx:**
 ```typescript
@@ -1171,7 +1538,7 @@ export default function CreateCustomerPage() {
 }
 ```
 
-### 5. Billing Matrix View
+### 7. Billing Matrix View
 
 **pages/billing/matrix.tsx:**
 ```typescript
