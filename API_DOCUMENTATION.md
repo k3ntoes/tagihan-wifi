@@ -45,6 +45,8 @@ Dokumentasi lengkap untuk API Backend Tagihan WiFi. Panduan ini dimaksudkan untu
 }
 ```
 
+**Note:** Response uses camelCase format (e.g., `accessToken`, `tokenType`, `expiresIn`)
+
 **Usage in NextJS:**
 ```typescript
 const loginUser = async (username: string, password: string) => {
@@ -82,6 +84,8 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Note:** User `id` is an integer (not sqid). Response uses camelCase format.
+
 ### Register User (Admin Only)
 
 **Endpoint:** `POST /auth/register`
@@ -113,9 +117,18 @@ Authorization: Bearer <admin_token>
 }
 ```
 
+**Note:** Response uses camelCase format.
+
 ---
 
 ## Response Format
+
+### Important: Request vs Response Format
+
+- **Request bodies and query parameters** use snake_case (e.g., `customer_id`, `payment_date`, `per_page`)
+- **Response bodies** use camelCase (e.g., `customerId`, `paymentDate`, `perPage`, `isActive`)
+
+This convention applies to all endpoints unless otherwise noted.
 
 ### Single Resource Response
 
@@ -135,6 +148,8 @@ Single resource responses (create, get single) are wrapped in a `data` object:
 }
 ```
 
+**Note:** All fields use camelCase format in responses. The `id` field is generated as sqid on-the-fly from internal database ID.
+
 ### Paginated Response
 
 List responses (GET with pagination) return a paginated structure:
@@ -151,13 +166,15 @@ List responses (GET with pagination) return a paginated structure:
   "meta": {
     "total": 10,
     "page": 1,
-    "per_page": 10,
-    "total_pages": 1,
-    "has_next": false,
-    "has_prev": false
+    "perPage": 10,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
   }
 }
 ```
+
+**Note:** All fields use camelCase format. Request parameters use snake_case (e.g., `per_page`), but response uses camelCase (e.g., `perPage`).
 
 ### IDs Format (SQID)
 
@@ -229,6 +246,8 @@ Content-Type: application/json
 }
 ```
 
+**Note:** Response uses camelCase format.
+
 **Errors:**
 - 400: Package name already exists
 - 401: Unauthorized
@@ -242,13 +261,13 @@ List all packages with filters and pagination.
 **Query Parameters:**
 ```
 page=1                    # Page number (default: 1)
-perPage=10               # Items per page (default: 10, max: 100)
-name=premium             # Filter by name (partial match)
-minSpeed=50              # Filter by minimum speed (Mbps)
-maxSpeed=100             # Filter by maximum speed (Mbps)
-minPrice=100000          # Filter by minimum price
-maxPrice=300000          # Filter by maximum price
-includeInactive=false    # Include inactive packages (default: false)
+per_page=10               # Items per page (default: 10, max: 100)
+name=premium              # Filter by name (partial match)
+minSpeed=50               # Filter by minimum speed (Mbps)
+maxSpeed=100              # Filter by maximum speed (Mbps)
+minPrice=100000           # Filter by minimum price
+maxPrice=300000           # Filter by maximum price
+includeInactive=false     # Include inactive packages (default: false)
 ```
 
 **Response (200 OK):**
@@ -276,6 +295,8 @@ includeInactive=false    # Include inactive packages (default: false)
 }
 ```
 
+**Note:** Request uses snake_case parameters (e.g., `per_page`, `min_speed`), but response uses camelCase (e.g., `perPage`, `isActive`).
+
 ---
 
 #### GET /packages/{id}
@@ -298,6 +319,8 @@ Get specific package by ID.
   }
 }
 ```
+
+**Note:** Response uses camelCase format.
 
 **Errors:**
 - 400: Invalid package ID format
@@ -338,6 +361,8 @@ Content-Type: application/json
 }
 ```
 
+**Note:** Response uses camelCase format.
+
 **Errors:**
 - 400: Invalid input or package name already exists
 - 403: Forbidden
@@ -377,8 +402,8 @@ Content-Type: application/json
 ```json
 {
   "name": "PT Mitra Bisnis",
-  "packageId": "pkg_abc123xyz",
-  "monthlyFee": 250000
+  "package_id": "pkg_abc123xyz",
+  "monthly_fee": 250000
 }
 ```
 
@@ -399,6 +424,8 @@ Content-Type: application/json
 }
 ```
 
+**Note:** Request uses snake_case (e.g., `package_id`, `monthly_fee`), but response uses camelCase (e.g., `monthlyFee`).
+
 **Errors:**
 - 400: Invalid package ID or input
 - 401: Unauthorized
@@ -412,9 +439,9 @@ List all customers with filters and pagination.
 **Query Parameters:**
 ```
 page=1                   # Page number (default: 1)
-perPage=10              # Items per page (default: 10, max: 100)
-name=mitra              # Filter by customer name (partial match)
-packageId=pkg_abc123xyz # Filter by package ID
+per_page=10              # Items per page (default: 10, max: 100)
+name=mitra               # Filter by customer name (partial match)
+package_id=pkg_abc123xyz # Filter by package ID
 ```
 
 **Response (200 OK):**
@@ -444,6 +471,8 @@ packageId=pkg_abc123xyz # Filter by package ID
 }
 ```
 
+**Note:** Request uses snake_case parameters (e.g., `per_page`, `package_id`), but response uses camelCase.
+
 ---
 
 #### GET /customers/{id}
@@ -469,6 +498,8 @@ Get specific customer by ID.
 }
 ```
 
+**Note:** Response uses camelCase format.
+
 ---
 
 #### PATCH /customers/{id}
@@ -484,8 +515,8 @@ Content-Type: application/json
 ```json
 {
   "name": "PT Mitra Bisnis Baru",
-  "packageId": "pkg_def456ghi",
-  "monthlyFee": 300000
+  "package_id": "pkg_def456ghi",
+  "monthly_fee": 300000
 }
 ```
 
@@ -505,6 +536,8 @@ Content-Type: application/json
   }
 }
 ```
+
+**Note:** Request uses snake_case (e.g., `package_id`, `monthly_fee`), but response uses camelCase.
 
 ---
 
@@ -534,10 +567,10 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "customerId": "cust_xyz789abc",
-  "paymentDate": "2026-02-05",
-  "billingMonth": 2,
-  "billingYear": 2026,
+  "customer_id": "cust_xyz789abc",
+  "payment_date": "2026-02-05",
+  "billing_month": 2,
+  "billing_year": 2026,
   "amount": 250000
 }
 ```
@@ -566,6 +599,8 @@ Content-Type: application/json
 }
 ```
 
+**Note:** Request uses snake_case (e.g., `customer_id`, `payment_date`), but response uses camelCase (e.g., `paymentDate`, `billingMonth`).
+
 **Errors:**
 - 400: Invalid customer ID or input
 - 409: Payment already exists for this customer/month/year
@@ -580,10 +615,10 @@ List all payments with filters and pagination.
 **Query Parameters:**
 ```
 page=1                   # Page number (default: 1)
-perPage=10              # Items per page (default: 10, max: 100)
-customerId=cust_xyz789abc # Filter by customer ID
-year=2026               # Filter by billing year
-month=2                 # Filter by billing month
+per_page=10              # Items per page (default: 10, max: 100)
+customer_id=cust_xyz789abc # Filter by customer ID
+year=2026                # Filter by billing year
+month=2                  # Filter by billing month
 ```
 
 **Response (200 OK):**
@@ -619,6 +654,8 @@ month=2                 # Filter by billing month
   }
 }
 ```
+
+**Note:** Request uses snake_case parameters (e.g., `per_page`, `customer_id`), but response uses camelCase.
 
 ---
 
@@ -664,6 +701,8 @@ Format: `DD-MM-YYYY customer_name`
 }
 ```
 
+**Note:** Response uses camelCase format.
+
 **Errors:**
 - 400: Invalid format or customer not found
 - 409: Payment already exists
@@ -683,9 +722,9 @@ Get annual billing matrix for all customers (paginated).
 **Query Parameters:**
 ```
 page=1                      # Page number (default: 1)
-perPage=10                 # Items per page (default: 10, max: 100)
-customerId=cust_xyz789abc  # Filter by specific customer
-customerName=mitra         # Filter by customer name (partial match)
+per_page=10                 # Items per page (default: 10, max: 100)
+customer_id=cust_xyz789abc  # Filter by specific customer
+customer_name=mitra         # Filter by customer name (partial match)
 ```
 
 **Response (200 OK):**
@@ -746,6 +785,8 @@ customerName=mitra         # Filter by customer name (partial match)
 }
 ```
 
+**Note:** Request uses snake_case parameters (e.g., `per_page`, `customer_id`, `customer_name`), but response uses camelCase (e.g., `monthNames`, `totalPaid`, `totalExpected`, `completionPercentage`, `paymentDate`).
+
 ---
 
 ## Error Handling
@@ -789,10 +830,10 @@ All list endpoints support pagination with the following parameters:
 
 ```
 page=1              # Page number (1-indexed, default: 1)
-per_page=10        # Items per page (default: 10, max: 100)
+per_page=10         # Items per page (default: 10, max: 100)
 ```
 
-The response includes metadata:
+The response includes metadata with camelCase field names:
 
 ```json
 {
@@ -809,8 +850,10 @@ The response includes metadata:
 
 **Example: Get page 2 with 20 items per page**
 ```
-GET /packages?page=2&perPage=20
+GET /packages?page=2&per_page=20
 ```
+
+**Note:** Request parameters use snake_case (e.g., `per_page`), but response metadata uses camelCase (e.g., `perPage`, `hasNext`, `hasPrev`).
 
 ---
 
@@ -1031,8 +1074,8 @@ export default function CreateCustomerPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: '',
-    packageId: '',
-    monthlyFee: '',
+    package_id: '',
+    monthly_fee: '',
   });
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1045,7 +1088,7 @@ export default function CreateCustomerPage() {
   const fetchPackages = async () => {
     try {
       const response = await apiClient.get('/packages', {
-        params: { perPage: 100 },
+        params: { per_page: 100 },
       });
       setPackages(response.data.data);
     } catch (err) {
@@ -1061,8 +1104,8 @@ export default function CreateCustomerPage() {
     try {
       await apiClient.post('/customers', {
         name: formData.name,
-        packageId: formData.packageId || null,
-        monthlyFee: parseInt(formData.monthlyFee),
+        package_id: formData.package_id || null,
+        monthly_fee: parseInt(formData.monthly_fee),
       });
       router.push('/customers');
     } catch (err: any) {
@@ -1093,9 +1136,9 @@ export default function CreateCustomerPage() {
         <div>
           <label>Package:</label>
           <select
-            value={formData.packageId}
+            value={formData.package_id}
             onChange={(e) =>
-              setFormData({ ...formData, packageId: e.target.value })
+              setFormData({ ...formData, package_id: e.target.value })
             }
           >
             <option value="">-- Select Package --</option>
@@ -1111,9 +1154,9 @@ export default function CreateCustomerPage() {
           <label>Monthly Fee (Rp):</label>
           <input
             type="number"
-            value={formData.monthlyFee}
+            value={formData.monthly_fee}
             onChange={(e) =>
-              setFormData({ ...formData, monthlyFee: e.target.value })
+              setFormData({ ...formData, monthly_fee: e.target.value })
             }
             required
           />
@@ -1175,7 +1218,7 @@ export default function BillingMatrixPage() {
     setLoading(true);
     try {
       const response = await apiClient.get(`/billing-matrix/${year}`, {
-        params: { perPage: 100 },
+        params: { per_page: 100 },
       });
       setRows(response.data.data);
       setMonthNames(response.data.monthNames);
@@ -1260,13 +1303,70 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
 
 ## Important Notes for Frontend Developers
 
+### Request vs Response Format
+
+**This is critical for frontend integration:**
+
+- **Request bodies and query parameters**: Use **snake_case**
+  - Example: `customer_id`, `payment_date`, `per_page`, `monthly_fee`, `package_id`
+
+- **Response bodies**: Use **camelCase**
+  - Example: `customerId`, `paymentDate`, `perPage`, `monthlyFee`, `packageId`, `isActive`, `createdAt`
+
+### Examples
+
+**Request (send snake_case):**
+```typescript
+// Create customer
+await apiClient.post('/customers', {
+  name: 'PT Mitra Bisnis',
+  package_id: 'pkg_abc123xyz',  // snake_case
+  monthly_fee: 250000            // snake_case
+});
+
+// List with pagination
+await apiClient.get('/packages', {
+  params: {
+    page: 1,
+    per_page: 10,      // snake_case
+    min_speed: 50,     // snake_case
+    max_price: 300000  // snake_case
+  }
+});
+```
+
+**Response (receive camelCase):**
+```json
+{
+  "data": {
+    "id": "cust_xyz789abc",
+    "monthlyFee": 250000,      // camelCase
+    "packageId": "pkg_abc123xyz", // camelCase (if present)
+    "createdAt": "2026-02-05T10:00:00",  // camelCase
+    "updatedAt": "2026-02-05T10:00:00"   // camelCase
+  },
+  "meta": {
+    "perPage": 10,      // camelCase
+    "totalPages": 1,    // camelCase
+    "hasNext": false,   // camelCase
+    "hasPrev": false    // camelCase
+  }
+}
+```
+
+### Other Important Notes
+
 1. **Token Storage:** Store JWT token in `localStorage`. Ensure it's cleared on logout.
 
 2. **CORS:** Make sure the API server allows requests from your frontend domain.
 
 3. **Nested Response Data:** All single resource responses wrap data in a `data` object. Paginated responses have a `data` array. Always access data through these keys.
 
-4. **SQID Format:** Resource IDs use SQID format with prefixes. Use them as provided in API responses.
+4. **SQID Format:** Resource IDs use SQID format with prefixes:
+   - Packages: `pkg_abc123xyz`
+   - Customers: `cust_xyz789abc`
+   - Payments: `pay_abc123xyz`
+   - Use them as provided in API responses.
 
 5. **Dates:** API returns dates in ISO 8601 format. Use `new Date()` to parse them in JavaScript.
 
@@ -1274,36 +1374,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
 
 7. **Authentication:** Include `Authorization: Bearer <token>` header for all protected endpoints.
 
-8. **Pagination:** Always check `has_next` and `has_prev` before navigating pages.
-
----
-
-## Testing API with cURL
-
-### Login
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
-```
-
-### Get Packages
-```bash
-curl http://localhost:8000/api/v1/packages \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-### Create Package
-```bash
-curl -X POST http://localhost:8000/api/v1/packages \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "name":"Paket 50 Mbps",
-    "speed":50,
-    "price":200000
-  }'
-```
+8. **Pagination:** Always check `hasNext` and `hasPrev` before navigating pages.
 
 ---
 
@@ -1314,5 +1385,7 @@ For issues or questions about the API, please check:
 2. HTTP status code
 3. Verify your token is valid and not expired
 4. Check query parameters and request body format
+5. **Verify request format:** Are you using snake_case in requests?
+6. **Verify response parsing:** Are you accessing camelCase fields in responses?
 
-**Last Updated:** February 5, 2026
+**Last Updated:** February 14, 2026
