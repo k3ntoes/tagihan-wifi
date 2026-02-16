@@ -4,6 +4,8 @@ Payment API endpoints (Controller Layer).
 Endpoints:
 - POST /payments - Record new payment (admin only)
 - GET /payments - List payments with optional filters
+- PATCH /payments/{payment_id} - Update payment (admin only)
+- DELETE /payments/{payment_id} - Delete payment (admin only)
 - POST /payments/parse-log - Parse manual payment log entry (admin only)
 """
 
@@ -11,7 +13,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 
 from app.core.auth import get_current_user, require_role
 from app.db.database import Database, get_db
-from app.schemas import PaymentCreate, SinglePaymentResponse, PaymentLogParser, PaginatedPaymentResponse
+from app.schemas import PaymentCreate, PaymentUpdate, SinglePaymentResponse, PaymentLogParser, PaginatedPaymentResponse
 from app.services import PaymentService
 from app.utils.payment_parser import parse_payment_log
 from app.utils.sqids_helper import get_sqids_helper
@@ -28,7 +30,7 @@ async def create_payment(
     """
     Record a new payment (admin only).
 
-    Supports payment recording via either customer_id or customer_sqid.
+    Supports payment recording via customer_id.
     Prevents duplicate payments for the same (customer, month, year).
     """
     service = PaymentService(db)
@@ -41,7 +43,6 @@ async def list_payments(
     page: int = 1,
     per_page: int = 10,
     customer_id: str = None,
-    customer_sqid: str = None,
     year: int = None,
     month: int = None,
     db: Database = Depends(get_db),
@@ -52,7 +53,6 @@ async def list_payments(
 
     Filters:
     - customer_id: Get payments for specific customer (by sqid)
-    - customer_sqid: Deprecated, use customer_id instead
     - year: Get payments for specific year
     - month: Get payments for specific month
 
@@ -65,7 +65,6 @@ async def list_payments(
         page=page,
         per_page=per_page,
         customer_id=customer_id,
-        customer_sqid=customer_sqid,
         year=year,
         month=month,
     )
@@ -98,7 +97,6 @@ async def parse_payment_log_endpoint(
         # Create payment using service
         payment_data = PaymentCreate(
             customer_id=None,  # Will be set by service
-            customer_sqid=None,
             payment_date=parsed.payment_date,
             billing_month=parsed.billing_month,
             billing_year=parsed.billing_year,
@@ -127,4 +125,36 @@ async def parse_payment_log_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error: {str(e)}",
         )
+
+
+@router.patch("/{payment_id}", response_model=SinglePaymentResponse)
+async def update_payment(
+    payment_id: str,
+    update_data: PaymentUpdate,
+    db: Database = Depends(get_db),
+    current_user: dict = Depends(require_role("admin")),
+):
+    """
+    Update payment (admin only).
+
+    Can update customer_id (sqid), payment_date, billing_month, billing_year, and/or amount.
+    Returns payment with nested customer info.
+    """
+    service = PaymentService(db)
+    payment = service.update_payment(payment_id, update_data)
+    return SinglePaymentResponse(data=payment)
+
+
+@router.delete("/{payment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_payment(
+    payment_id: str,
+    db: Database = Depends(get_db),
+    current_user: dict = Depends(require_role("admin")),
+):
+    """
+    Delete payment (admin only).
+    """
+    service = PaymentService(db)
+    service.delete_payment(payment_id)
+    return None
 

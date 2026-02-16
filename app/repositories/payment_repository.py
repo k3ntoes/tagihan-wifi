@@ -164,6 +164,55 @@ class PaymentRepository(BaseRepository):
         query = "DELETE FROM payments WHERE id = ?"
         return self.execute_delete(query, [payment_id])
 
+    def update(
+        self,
+        payment_id: int,
+        customer_id: Optional[int] = None,
+        payment_date: Optional[str] = None,
+        billing_month: Optional[int] = None,
+        billing_year: Optional[int] = None,
+        amount: Optional[int] = None,
+    ) -> Optional[tuple]:
+        """Update payment fields."""
+        updates = []
+        params = []
+
+        if customer_id is not None:
+            updates.append("customer_id = ?")
+            params.append(customer_id)
+
+        if payment_date is not None:
+            updates.append("payment_date = ?")
+            params.append(payment_date)
+
+        if billing_month is not None:
+            updates.append("billing_month = ?")
+            params.append(billing_month)
+
+        if billing_year is not None:
+            updates.append("billing_year = ?")
+            params.append(billing_year)
+
+        if amount is not None:
+            updates.append("amount = ?")
+            params.append(amount)
+
+        if not updates:
+            return None
+
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(payment_id)
+
+        query = f"""
+            UPDATE payments
+            SET {', '.join(updates)}
+            WHERE id = ?
+            RETURNING id, customer_id, payment_date, billing_month, billing_year, amount, created_at, updated_at
+        """
+
+        result = self.execute_insert(query, params)
+        return result[0] if result else None
+
     def find_by_customer_year_month(
         self, customer_ids: List[int], year: int
     ) -> List[tuple]:

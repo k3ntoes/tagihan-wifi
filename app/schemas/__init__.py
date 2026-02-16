@@ -176,11 +176,19 @@ class CustomerInfo(BaseModel):
 class PaymentCreate(BaseModel):
     """Create payment request"""
     customer_id: Optional[str] = None  # sqid string
-    customer_sqid: Optional[str] = None  # Deprecated: use customer_id instead
     payment_date: date
     billing_month: int = Field(..., ge=1, le=12)
     billing_year: int = Field(..., ge=2020, le=2099)
     amount: int = Field(..., gt=0)
+
+
+class PaymentUpdate(BaseModel):
+    """Update payment request"""
+    customer_id: Optional[str] = None  # sqid string
+    payment_date: Optional[date] = None
+    billing_month: Optional[int] = Field(None, ge=1, le=12)
+    billing_year: Optional[int] = Field(None, ge=2020, le=2099)
+    amount: Optional[int] = Field(None, gt=0)
 
 
 class PaymentResponse(BaseModel):

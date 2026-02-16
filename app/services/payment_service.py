@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 
 from app.db.database import Database
 from app.repositories import PaymentRepository, CustomerRepository
-from app.schemas import PaymentResponse, PaymentCreate, PaginationMeta, CustomerInfo, PackageInfo
+from app.schemas import PaymentResponse, PaymentCreate, PaymentUpdate, PaginationMeta, CustomerInfo, PackageInfo
 from app.utils.sqids_helper import get_sqids_helper
 
 
@@ -50,18 +50,6 @@ class PaymentService:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Invalid customer ID: {payment_data.customer_id}",
-                    )
-            elif payment_data.customer_sqid:  # Backward compatibility
-                try:
-                    actual_customer_id, model = self.sqids_helper.decode_with_prefix(
-                        payment_data.customer_sqid
-                    )
-                    if model != 'customer':
-                        raise ValueError("Not a customer ID")
-                except ValueError:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid customer sqid: {payment_data.customer_sqid}",
                     )
 
             if not actual_customer_id:
@@ -160,7 +148,6 @@ class PaymentService:
         page: int = 1,
         per_page: int = 10,
         customer_id: Optional[str] = None,
-        customer_sqid: Optional[str] = None,
         year: Optional[int] = None,
         month: Optional[int] = None,
     ) -> tuple[List[PaymentResponse], PaginationMeta]:
@@ -194,16 +181,6 @@ class PaymentService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Invalid customer ID: {customer_id}",
                     )
-            elif customer_sqid:  # Backward compatibility
-                try:
-                    actual_customer_id, model = self.sqids_helper.decode_with_prefix(customer_sqid)
-                    if model != 'customer':
-                        raise ValueError("Not a customer ID")
-                except ValueError:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid customer sqid: {customer_sqid}",
-                    )
 
             # Get payments from repository
             payments, total = self.payment_repo.find_all_with_filters(
@@ -229,6 +206,155 @@ class PaymentService:
         except HTTPException:
             raise
         except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}",
+            )
+
+    def update_payment(self, payment_sqid: str, payment_data: PaymentUpdate) -> PaymentResponse:
+        """
+        Update payment with business validation.
+
+        Args:
+            payment_sqid: Payment sqid
+            payment_data: Update data
+
+        Returns:
+            Updated payment response
+
+        Raises:
+            HTTPException: If validation fails or payment not found
+        """
+        try:
+            actual_payment_id, model = self.sqids_helper.decode_with_prefix(payment_sqid)
+            if model != 'payment':
+                raise ValueError("Not a payment ID")
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid payment ID: {payment_sqid}",
+            )
+
+        try:
+            existing_payment = self.payment_repo.find_by_id(actual_payment_id)
+            if not existing_payment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Payment not found",
+                )
+
+            # Decode customer if provided
+            customer_id_update = None
+            new_customer_id = existing_payment[1]
+            if payment_data.customer_id:
+                try:
+                    new_customer_id, model = self.sqids_helper.decode_with_prefix(
+                        payment_data.customer_id
+                    )
+                    if model != 'customer':
+                        raise ValueError("Not a customer ID")
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid customer ID: {payment_data.customer_id}",
+                    )
+                customer_id_update = new_customer_id
+
+            # Verify customer if updated
+            if customer_id_update is not None and not self.customer_repo.exists_by_id(new_customer_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Customer not found",
+                )
+
+            new_billing_month = payment_data.billing_month or existing_payment[3]
+            new_billing_year = payment_data.billing_year or existing_payment[4]
+
+            # Check for duplicate payment if period/customer changes
+            if (
+                new_customer_id != existing_payment[1]
+                or new_billing_month != existing_payment[3]
+                or new_billing_year != existing_payment[4]
+            ):
+                duplicate = self.payment_repo.find_by_customer_and_period(
+                    new_customer_id, new_billing_month, new_billing_year
+                )
+                if duplicate and duplicate[0] != actual_payment_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Payment already exists for this customer and month/year",
+                    )
+
+            updated_row = self.payment_repo.update(
+                actual_payment_id,
+                customer_id=customer_id_update,
+                payment_date=payment_data.payment_date,
+                billing_month=payment_data.billing_month,
+                billing_year=payment_data.billing_year,
+                amount=payment_data.amount,
+            )
+
+            if not updated_row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Payment not found or no changes made",
+                )
+
+            self.db.conn.commit()
+
+            return self._build_payment_response(updated_row)
+
+        except HTTPException:
+            self.db.conn.rollback()
+            raise
+        except Exception as e:
+            self.db.conn.rollback()
+            if "UNIQUE constraint failed" in str(e):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Payment already exists for this customer and month/year",
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}",
+            )
+
+    def delete_payment(self, payment_sqid: str) -> None:
+        """
+        Delete a payment record.
+
+        Args:
+            payment_sqid: Payment sqid
+
+        Raises:
+            HTTPException: If payment not found or invalid sqid
+        """
+        try:
+            actual_payment_id, model = self.sqids_helper.decode_with_prefix(payment_sqid)
+            if model != 'payment':
+                raise ValueError("Not a payment ID")
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid payment ID: {payment_sqid}",
+            )
+
+        try:
+            affected = self.payment_repo.delete(actual_payment_id)
+
+            if affected == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Payment not found",
+                )
+
+            self.db.conn.commit()
+
+        except HTTPException:
+            self.db.conn.rollback()
+            raise
+        except Exception as e:
+            self.db.conn.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Database error: {str(e)}",
