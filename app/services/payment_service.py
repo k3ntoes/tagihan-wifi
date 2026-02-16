@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 
 from app.db.database import Database
 from app.repositories import PaymentRepository, CustomerRepository
-from app.schemas import PaymentResponse, PaymentCreate, PaginationMeta
+from app.schemas import PaymentResponse, PaymentCreate, PaginationMeta, CustomerInfo, PackageInfo
 from app.utils.sqids_helper import get_sqids_helper
 
 
@@ -237,11 +237,31 @@ class PaymentService:
     def _build_payment_response(self, payment_row: tuple) -> PaymentResponse:
         """Build PaymentResponse from database row."""
         payment_sqid = self.sqids_helper.encode_with_prefix(payment_row[0], 'payment')
-        customer_sqid = self.sqids_helper.encode_with_prefix(payment_row[1], 'customer')
-        
+        customer_row = self.customer_repo.find_by_id(payment_row[1])
+
+        if not customer_row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found for payment",
+            )
+
+        customer_sqid = self.sqids_helper.encode_with_prefix(customer_row[0], 'customer')
+
+        package_info = None
+        if customer_row[2] is not None and customer_row[3] is not None:
+            package_sqid = self.sqids_helper.encode_with_prefix(customer_row[2], 'package')
+            package_info = PackageInfo(id=package_sqid, name=customer_row[3])
+
+        customer_info = CustomerInfo(
+            id=customer_sqid,
+            name=customer_row[1],
+            monthly_fee=customer_row[4],
+            package=package_info,
+        )
+
         return PaymentResponse(
             id=payment_sqid,
-            customer_id=customer_sqid,
+            customer=customer_info,
             payment_date=payment_row[2],
             billing_month=payment_row[3],
             billing_year=payment_row[4],
