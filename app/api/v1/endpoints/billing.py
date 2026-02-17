@@ -7,7 +7,6 @@ Endpoints:
 
 from fastapi import APIRouter, Depends, Path
 
-from app.core.auth import get_current_user
 from app.db.database import Database, get_db
 from app.schemas import PaginatedBillingMatrixResponse
 from app.services import BillingService
@@ -23,7 +22,6 @@ async def get_billing_matrix(
     customer_id: str = None,
     customer_name: str = None,
     db: Database = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
 ):
     """
     Get annual billing matrix for all active customers with pagination.
@@ -63,7 +61,6 @@ async def get_billing_matrix(
 async def get_billing_summary(
     year: int = Path(..., ge=2020, le=2100, description="Billing year"),
     db: Database = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
 ):
     """
     Get summary statistics for billing matrix.
