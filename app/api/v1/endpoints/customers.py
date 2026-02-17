@@ -70,6 +70,29 @@ async def list_customers(
     return PaginatedCustomerResponse(data=data, meta=meta)
 
 
+@router.get("/inactive", response_model=PaginatedCustomerResponse)
+async def list_inactive_customers(
+    page: int = 1,
+    per_page: int = 10,
+    name: str = None,
+    package_id: str = None,
+    db: Database = Depends(get_db),
+    current_user: dict = Depends(require_role("admin")),
+):
+    """
+    List inactive customers (admin only) with pagination.
+
+    Supports filtering by:
+    - name: Partial match on customer name (case-insensitive)
+    - package_id: Exact match on package ID (sqid format)
+    """
+    service = CustomerService(db)
+    data, meta = service.list_inactive_customers(
+        page=page, per_page=per_page, name=name, package_id=package_id
+    )
+    return PaginatedCustomerResponse(data=data, meta=meta)
+
+
 @router.get("/{customer_id}", response_model=SingleCustomerResponse)
 async def get_customer(
     customer_id: str,

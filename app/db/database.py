@@ -133,13 +133,18 @@ class Database:
                     username TEXT NOT NULL UNIQUE,
                     password_hash TEXT NOT NULL,
                     role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+                    customer_id INTEGER UNIQUE,
                     is_active BOOLEAN DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (customer_id) REFERENCES customers(id)
                 )
             """)
 
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_users_customer_id ON users(customer_id)")
+
+            self._ensure_users_customer_relation()
 
             self.conn.commit()
             logger.info("Database schema initialized successfully")
@@ -148,6 +153,31 @@ class Database:
             self.conn.rollback()
             logger.error(f"Failed to initialize schema: {e}")
             raise
+
+    def _ensure_users_customer_relation(self):
+        """Ensure users.customer_id exists and backfill from usernames."""
+        columns = self.conn.execute("PRAGMA table_info(users)").fetchall()
+        column_names = {col[1] for col in columns}
+
+        if "customer_id" not in column_names:
+            self.conn.execute("ALTER TABLE users ADD COLUMN customer_id INTEGER")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_users_customer_id ON users(customer_id)")
+            self.conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_customer_id ON users(customer_id)"
+            )
+
+        # Backfill customer_id based on username matching normalized customer name
+        self.conn.execute(
+            """
+            UPDATE users
+            SET customer_id = (
+                SELECT c.id
+                FROM customers c
+                WHERE LOWER(REPLACE(c.name, ' ', '_')) = users.username
+            )
+            WHERE customer_id IS NULL
+            """
+        )
 
     @contextmanager
     def get_connection(self):

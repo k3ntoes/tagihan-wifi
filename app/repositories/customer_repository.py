@@ -91,6 +91,59 @@ class CustomerRepository(BaseRepository):
 
         return customers, total
 
+    def find_all_inactive_with_filters(
+        self,
+        name: Optional[str] = None,
+        package_id: Optional[int] = None,
+        page: int = 1,
+        per_page: int = 10,
+    ) -> tuple[List[tuple], int]:
+        """
+        Find all inactive customers with optional filters and pagination.
+
+        Returns:
+            Tuple of (customers list, total count)
+        """
+        query = """
+            SELECT c.id, c.name, c.package_id, p.name as package_name,
+                   c.monthly_fee, c.package_start_date, c.created_at, c.updated_at
+            FROM customers c
+            LEFT JOIN packages p ON c.package_id = p.id
+            WHERE c.is_active = false
+        """
+        params: List[object] = []
+
+        if name and name.strip():
+            query += " AND LOWER(c.name) LIKE LOWER(?)"
+            params.append(f"%{name.strip()}%")
+
+        if package_id is not None:
+            query += " AND c.package_id = ?"
+            params.append(package_id)
+
+        count_query = """
+            SELECT COUNT(*)
+            FROM customers c
+            WHERE c.is_active = false
+        """
+        count_params: List[object] = []
+
+        if name and name.strip():
+            count_query += " AND LOWER(c.name) LIKE LOWER(?)"
+            count_params.append(f"%{name.strip()}%")
+
+        if package_id is not None:
+            count_query += " AND c.package_id = ?"
+            count_params.append(package_id)
+
+        total = self.count(count_query, count_params)
+
+        paginated_query, offset = self.build_pagination_query(query, page, per_page, "c.name ASC")
+        params.extend([per_page, offset])
+
+        customers = self.execute_query(paginated_query, params)
+        return customers, total
+
     def update(
         self,
         customer_id: int,

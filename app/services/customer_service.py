@@ -191,6 +191,67 @@ class CustomerService:
                 detail=f"Database error: {str(e)}",
             )
 
+    def list_inactive_customers(
+        self,
+        page: int = 1,
+        per_page: int = 10,
+        name: Optional[str] = None,
+        package_id: Optional[str] = None,
+    ) -> tuple[List[CustomerResponse], PaginationMeta]:
+        """
+        List inactive customers with filters and pagination.
+
+        Args:
+            page: Page number
+            per_page: Items per page
+            name: Filter by customer name
+            package_id: Filter by package sqid
+
+        Returns:
+            Tuple of (customer list, pagination meta)
+
+        Raises:
+            HTTPException: If invalid package_id or database error
+        """
+        try:
+            actual_package_id = None
+            if package_id and package_id.strip():
+                try:
+                    actual_package_id, model = self.sqids_helper.decode_with_prefix(package_id)
+                    if model != 'package':
+                        raise ValueError("Not a package ID")
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid package ID: {package_id}",
+                    )
+
+            customers, total = self.customer_repo.find_all_inactive_with_filters(
+                name=name, package_id=actual_package_id, page=page, per_page=per_page
+            )
+
+            data = [self._build_customer_response_with_package(row) for row in customers]
+
+            total_pages = (total + per_page - 1) // per_page
+            meta = PaginationMeta(
+                total=total,
+                page=page,
+                per_page=per_page,
+                total_pages=total_pages,
+                has_next=page < total_pages,
+                has_prev=page > 1,
+            )
+
+            return data, meta
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}",
+            )
+
     def update_customer(
         self, customer_sqid: str, customer_data: CustomerUpdate
     ) -> CustomerResponse:
@@ -431,11 +492,11 @@ class CustomerService:
             # Create user account
             result = self.db.conn.execute(
                 """
-                INSERT INTO users (username, password_hash, role, is_active)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO users (username, password_hash, role, is_active, customer_id)
+                VALUES (?, ?, ?, ?, ?)
                 RETURNING id, username, role
                 """,
-                [username, password_hash, "user", True],
+                [username, password_hash, "user", True, customer_id],
             ).fetchall()
             
             if result:
@@ -454,11 +515,11 @@ class CustomerService:
                     
                     result = self.db.conn.execute(
                         """
-                        INSERT INTO users (username, password_hash, role, is_active)
-                        VALUES (?, ?, ?, ?)
+                        INSERT INTO users (username, password_hash, role, is_active, customer_id)
+                        VALUES (?, ?, ?, ?, ?)
                         RETURNING id, username, role
                         """,
-                        [username, password_hash, "user", True],
+                        [username, password_hash, "user", True, customer_id],
                     ).fetchall()
                     
                     if result:
