@@ -157,6 +157,10 @@ class BillingService:
         """
         from datetime import date
         
+        # Convert package_start_date string to date object if needed
+        if isinstance(package_start_date, str):
+            package_start_date = date.fromisoformat(package_start_date)
+        
         # Generate customer sqid
         customer_sqid = self.sqids_helper.encode_with_prefix(customer_id, 'customer')
 
