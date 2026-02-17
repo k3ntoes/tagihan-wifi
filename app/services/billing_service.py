@@ -87,8 +87,8 @@ class BillingService:
             # Build matrix rows
             rows = []
             for customer in customers:
-                customer_id_val, name, monthly_fee = customer
-                row = self._build_billing_row(customer_id_val, name, monthly_fee, year)
+                customer_id_val, name, monthly_fee, package_start_date = customer
+                row = self._build_billing_row(customer_id_val, name, monthly_fee, year, package_start_date)
                 rows.append(row)
 
             month_names = list(calendar.month_name)[1:]
@@ -140,7 +140,7 @@ class BillingService:
             )
 
     def _build_billing_row(
-        self, customer_id: int, customer_name: str, monthly_fee: int, year: int
+        self, customer_id: int, customer_name: str, monthly_fee: int, year: int, package_start_date = None
     ) -> BillingMatrixRow:
         """
         Build a billing matrix row for a customer.
@@ -150,10 +150,13 @@ class BillingService:
             customer_name: Customer name
             monthly_fee: Monthly fee amount
             year: Billing year
+            package_start_date: Date when package started (for revenue calculation)
             
         Returns:
-            BillingMatrixRow with payment status for all months
+            BillingMatrixRow with payment status for all months and expected revenue
         """
+        from datetime import date
+        
         # Generate customer sqid
         customer_sqid = self.sqids_helper.encode_with_prefix(customer_id, 'customer')
 
@@ -176,7 +179,15 @@ class BillingService:
 
         for month in range(1, 13):
             month_name = calendar.month_name[month]
-            total_expected += monthly_fee
+            
+            # Calculate expected revenue for this month
+            month_end = date(year, month, calendar.monthrange(year, month)[1])
+            
+            # Check if this month is before package start date
+            expected_revenue_this_month = 0
+            if package_start_date is None or package_start_date <= month_end:
+                expected_revenue_this_month = monthly_fee
+                total_expected += monthly_fee
 
             if month in payment_map:
                 payment_info = payment_map[month]
@@ -185,6 +196,7 @@ class BillingService:
                     PaymentByMonth(
                         month=month,
                         month_name=month_name,
+                        expected_revenue=expected_revenue_this_month,
                         paid=True,
                         amount=payment_info["amount"],
                         payment_date=payment_info["payment_date"],
@@ -195,6 +207,7 @@ class BillingService:
                     PaymentByMonth(
                         month=month,
                         month_name=month_name,
+                        expected_revenue=expected_revenue_this_month,
                         paid=False,
                         amount=None,
                         payment_date=None,
@@ -220,5 +233,6 @@ class BillingService:
             payments=payments_by_month,
             total_paid=total_paid,
             total_expected=total_expected,
+            monthly_revenue_estimate=monthly_fee,
             completion_percentage=round(completion_percentage, 2),
         )

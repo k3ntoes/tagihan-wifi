@@ -2,7 +2,8 @@
 Customer repository for data access operations.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import List, Optional
+
 from .base_repository import BaseRepository
 
 
@@ -25,7 +26,7 @@ class CustomerRepository(BaseRepository):
         """Find customer by ID."""
         query = """
             SELECT c.id, c.name, c.package_id, p.name as package_name, 
-                   c.monthly_fee, c.created_at, c.updated_at
+                   c.monthly_fee, c.package_start_date, c.created_at, c.updated_at
             FROM customers c
             LEFT JOIN packages p ON c.package_id = p.id
             WHERE c.id = ? AND c.is_active = true
@@ -41,14 +42,14 @@ class CustomerRepository(BaseRepository):
     ) -> tuple[List[tuple], int]:
         """
         Find all customers with optional filters and pagination.
-        
+
         Returns:
             Tuple of (customers list, total count)
         """
         # Build base query
         query = """
             SELECT c.id, c.name, c.package_id, p.name as package_name, 
-                   c.monthly_fee, c.created_at, c.updated_at
+                   c.monthly_fee, c.package_start_date, c.created_at, c.updated_at
             FROM customers c
             LEFT JOIN packages p ON c.package_id = p.id
             WHERE c.is_active = true
@@ -91,11 +92,12 @@ class CustomerRepository(BaseRepository):
         return customers, total
 
     def update(
-        self, 
-        customer_id: int, 
-        name: Optional[str] = None, 
+        self,
+        customer_id: int,
+        name: Optional[str] = None,
         package_id: Optional[int] = None,
-        monthly_fee: Optional[int] = None
+        monthly_fee: Optional[int] = None,
+        package_start_date: Optional[str] = None,
     ) -> Optional[tuple]:
         """Update customer fields."""
         updates = []
@@ -113,6 +115,10 @@ class CustomerRepository(BaseRepository):
             updates.append("monthly_fee = ?")
             params.append(monthly_fee)
 
+        if package_start_date is not None:
+            updates.append("package_start_date = ?")
+            params.append(package_start_date)
+
         if not updates:
             return None
 
@@ -123,7 +129,7 @@ class CustomerRepository(BaseRepository):
             UPDATE customers
             SET {', '.join(updates)}
             WHERE id = ? AND is_active = true
-            RETURNING id, name, package_id, monthly_fee, created_at, updated_at
+            RETURNING id, name, package_id, monthly_fee, package_start_date, created_at, updated_at
         """
 
         result = self.execute_insert(query, params)
@@ -158,13 +164,33 @@ class CustomerRepository(BaseRepository):
         """Find customers by list of IDs."""
         if not customer_ids:
             return []
-        
-        placeholders = ','.join(['?'] * len(customer_ids))
+
+        placeholders = ",".join(["?"] * len(customer_ids))
         query = f"""
             SELECT c.id, c.name, c.package_id, p.name as package_name, 
-                   c.monthly_fee, c.created_at, c.updated_at
+                   c.monthly_fee, c.package_start_date, c.created_at, c.updated_at
             FROM customers c
             LEFT JOIN packages p ON c.package_id = p.id
             WHERE c.id IN ({placeholders}) AND c.is_active = true
         """
         return self.execute_query(query, customer_ids)
+
+    def enable_customer(self, customer_id: int) -> int:
+        """Enable/activate a customer by setting is_active to true."""
+        query = """
+            UPDATE customers
+            SET is_active = true, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND is_active = false
+        """
+        return self.execute_update(query, [customer_id])
+
+    def find_inactive_customer(self, customer_id: int) -> Optional[tuple]:
+        """Find inactive customer by ID (for enabling)."""
+        query = """
+            SELECT c.id, c.name, c.package_id, p.name as package_name, 
+                   c.monthly_fee, c.package_start_date, c.created_at, c.updated_at
+            FROM customers c
+            LEFT JOIN packages p ON c.package_id = p.id
+            WHERE c.id = ? AND c.is_active = false
+        """
+        return self.execute_one(query, [customer_id])

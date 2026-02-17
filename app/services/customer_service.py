@@ -247,6 +247,7 @@ class CustomerService:
                 name=customer_data.name,
                 package_id=actual_package_id,
                 monthly_fee=customer_data.monthly_fee,
+                package_start_date=customer_data.package_start_date.isoformat() if customer_data.package_start_date else None,
             )
 
             if not updated_row:
@@ -314,6 +315,60 @@ class CustomerService:
                 detail=f"Database error: {str(e)}",
             )
 
+    def enable_customer(self, customer_sqid: str) -> CustomerResponse:
+        """
+        Enable/activate a disabled customer.
+        
+        Args:
+            customer_sqid: Customer sqid
+            
+        Returns:
+            Enabled customer response
+            
+        Raises:
+            HTTPException: If customer not found or invalid sqid
+        """
+        try:
+            # Decode customer sqid
+            actual_customer_id, model = self.sqids_helper.decode_with_prefix(customer_sqid)
+            if model != 'customer':
+                raise ValueError("Not a customer ID")
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid customer ID: {customer_sqid}",
+            )
+
+        try:
+            # Enable customer
+            affected = self.customer_repo.enable_customer(actual_customer_id)
+
+            if affected == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Customer not found or already active",
+                )
+
+            self.db.conn.commit()
+
+            # Get the updated customer with full details
+            customer_row = self.customer_repo.find_by_id(actual_customer_id)
+            if not customer_row:
+                # If find_by_id fails, try find_inactive_customer to get the data
+                customer_row = self.customer_repo.find_inactive_customer(actual_customer_id)
+            
+            return self._build_customer_response_with_package(customer_row)
+
+        except HTTPException:
+            self.db.conn.rollback()
+            raise
+        except Exception as e:
+            self.db.conn.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}",
+            )
+
     def _build_customer_response(self, customer_row: tuple) -> CustomerResponse:
         """Build CustomerResponse from database row without package info."""
         customer_sqid = self.sqids_helper.encode_with_prefix(customer_row[0], 'customer')
@@ -340,6 +395,7 @@ class CustomerService:
             name=customer_row[1],
             package=package_info,
             monthly_fee=customer_row[4],
-            created_at=customer_row[5],
-            updated_at=customer_row[6],
+            package_start_date=customer_row[5],
+            created_at=customer_row[6],
+            updated_at=customer_row[7],
         )

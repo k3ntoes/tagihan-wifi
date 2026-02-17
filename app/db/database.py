@@ -93,6 +93,7 @@ class Database:
                     name TEXT NOT NULL,
                     package_id INTEGER,
                     monthly_fee INTEGER NOT NULL CHECK (monthly_fee > 0),
+                    package_start_date DATE,
                     is_active BOOLEAN DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -26,7 +26,7 @@ class BillingRepository(BaseRepository):
         """
         # Build base query
         query = """
-            SELECT id, name, monthly_fee
+            SELECT id, name, monthly_fee, package_start_date
             FROM customers
             WHERE is_active = true
         """

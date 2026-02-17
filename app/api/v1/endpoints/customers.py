@@ -119,3 +119,36 @@ async def delete_customer(
     service.delete_customer(customer_id)
     return None
 
+
+@router.post("/{customer_id}/enable", response_model=SingleCustomerResponse)
+async def enable_customer(
+    customer_id: str,
+    db: Database = Depends(get_db),
+    current_user: dict = Depends(require_role("admin")),
+):
+    """
+    Enable/activate a disabled customer (admin only).
+
+    Sets is_active to true, making the customer visible in billing matrix again.
+    """
+    service = CustomerService(db)
+    customer = service.enable_customer(customer_id)
+    return SingleCustomerResponse(data=customer)
+
+
+@router.post("/{customer_id}/disable", status_code=status.HTTP_204_NO_CONTENT)
+async def disable_customer(
+    customer_id: str,
+    db: Database = Depends(get_db),
+    current_user: dict = Depends(require_role("admin")),
+):
+    """
+    Disable/deactivate customer (admin only).
+
+    Soft delete: sets is_active to false.
+    Customer will not appear in billing matrix until re-enabled.
+    """
+    service = CustomerService(db)
+    service.delete_customer(customer_id)
+    return None
+

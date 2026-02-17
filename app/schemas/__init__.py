@@ -136,6 +136,7 @@ class CustomerUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     package_id: Optional[str] = None  # sqid string
     monthly_fee: Optional[int] = Field(None, gt=0)
+    package_start_date: Optional[date] = None  # Date when package starts/changes
 
 
 class CustomerResponse(BaseModel):
@@ -146,6 +147,7 @@ class CustomerResponse(BaseModel):
     name: str
     package: Optional[PackageInfo] = None  # Nested package object or null
     monthly_fee: int  # Monthly subscription fee in Rupiah
+    package_start_date: Optional[date] = None  # Date when package starts/changes
     created_at: datetime
     updated_at: datetime
     payments_count: Optional[int] = None  # Total number of payments made (optional)
@@ -221,6 +223,7 @@ class PaymentByMonth(BaseModel):
     
     month: int  # Month number (1-12)
     month_name: str  # Full month name (e.g., "January")
+    expected_revenue: int  # Expected revenue for this month (monthly_fee or 0 if before start date)
     paid: bool  # Whether payment was made for this month
     amount: Optional[int] = None  # Payment amount if paid, null otherwise
     payment_date: Optional[date] = None  # Payment date if paid, null otherwise
@@ -233,7 +236,8 @@ class BillingMatrixRow(BaseModel):
     customer: CustomerInfo  # Nested customer object with package info
     payments: List[PaymentByMonth]  # Payment status for all 12 months
     total_paid: int  # Total amount paid in the year (Rupiah)
-    total_expected: int  # Total expected for the year (monthly_fee × 12)
+    total_expected: int  # Total expected revenue in the year (Rupiah), accounting for start date
+    monthly_revenue_estimate: int  # Estimated monthly revenue based on current fee
     completion_percentage: float  # Percentage of expected payments completed
 
 
