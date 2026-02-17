@@ -44,7 +44,7 @@ def create_admin_user(db: Database, username: str, password: str):
 
 
 def add_sample_customer(db: Database, name: str, monthly_fee: int, package_id: int | None = None, package_start_date: date | None = None):
-    """Add a sample customer."""
+    """Add a sample customer. Also creates a user account automatically."""
     try:
         result = db.conn.execute(
             """
@@ -60,6 +60,11 @@ def add_sample_customer(db: Database, name: str, monthly_fee: int, package_id: i
             db.conn.commit()
             date_str = f", start: {customer[4]}" if customer[4] else ""
             print(f"✓ Customer created: {customer[1]} (fee: Rp{monthly_fee:,}, package_id: {customer[2]}{date_str})")
+            
+            # Show auto-created user info
+            username = name.strip().lower().replace(" ", "_")
+            print(f"  ├─ User account created: username='{username}', password='liank' (role: user)")
+            
             return customer[0]  # Return customer ID
     except Exception as e:
         print(f"✗ Error creating customer: {e}")
@@ -301,6 +306,9 @@ def main():
     print("4. Login with your admin credentials")
     print("\nCustomer Management:")
     print("- All sample customers are created as ACTIVE")
+    print("- User accounts auto-created for each customer")
+    print("  ├─ Username: customer name (lowercase, spaces→underscores)")
+    print("  └─ Default password: 'liank' (role: user)")
     print("- To test disable/enable: POST /customers/{customer_id}/disable")
     print("- To re-enable: POST /customers/{customer_id}/enable")
     print("- Disabled customers won't appear in billing matrix")

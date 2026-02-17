@@ -5,6 +5,7 @@ Customer service for business logic operations.
 from typing import Optional, List
 from fastapi import HTTPException, status
 
+from app.core.auth import PasswordManager
 from app.db.database import Database
 from app.repositories import CustomerRepository, PackageRepository
 from app.schemas import CustomerResponse, CustomerCreate, CustomerUpdate, PackageInfo, PaginationMeta
@@ -26,6 +27,7 @@ class CustomerService:
     def create_customer(self, customer_data: CustomerCreate) -> CustomerResponse:
         """
         Create a new customer with business validation.
+        Also automatically creates a user account with default password.
         
         Args:
             customer_data: Customer creation data
@@ -69,6 +71,11 @@ class CustomerService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create customer",
                 )
+
+            customer_id = customer_row[0]
+
+            # Create user account for customer with default password
+            self._create_customer_user(customer_id, customer_data.name)
 
             self.db.conn.commit()
 
@@ -399,3 +406,73 @@ class CustomerService:
             created_at=customer_row[6],
             updated_at=customer_row[7],
         )
+
+    def _create_customer_user(self, customer_id: int, customer_name: str) -> bool:
+        """
+        Create a user account for a new customer.
+        
+        Args:
+            customer_id: Customer database ID
+            customer_name: Customer name (used as username)
+            
+        Returns:
+            True if user created successfully
+            
+        Raises:
+            HTTPException: If user creation fails
+        """
+        try:
+            # Use customer name as username
+            username = customer_name.strip().lower().replace(" ", "_")
+            
+            # Hash default password "liank"
+            password_hash = PasswordManager.hash_password("liank")
+            
+            # Create user account
+            result = self.db.conn.execute(
+                """
+                INSERT INTO users (username, password_hash, role, is_active)
+                VALUES (?, ?, ?, ?)
+                RETURNING id, username, role
+                """,
+                [username, password_hash, "user", True],
+            ).fetchall()
+            
+            if result:
+                return True
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create user account",
+                )
+        except Exception as e:
+            if "UNIQUE constraint failed" in str(e):
+                # Username already exists, try with customer_id suffix
+                try:
+                    username = f"{customer_name.strip().lower().replace(' ', '_')}_{customer_id}"
+                    password_hash = PasswordManager.hash_password("liank")
+                    
+                    result = self.db.conn.execute(
+                        """
+                        INSERT INTO users (username, password_hash, role, is_active)
+                        VALUES (?, ?, ?, ?)
+                        RETURNING id, username, role
+                        """,
+                        [username, password_hash, "user", True],
+                    ).fetchall()
+                    
+                    if result:
+                        return True
+                    else:
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Failed to create user account",
+                        )
+                except Exception as e2:
+                    # Log the error but don't fail customer creation
+                    print(f"Warning: Could not create user account for customer {customer_id}: {str(e2)}")
+                    return True
+            else:
+                # Log the error but don't fail customer creation
+                print(f"Warning: Could not create user account for customer {customer_id}: {str(e)}")
+                return True
