@@ -24,40 +24,41 @@ class BillingRepository(BaseRepository):
         Returns:
             Tuple of (customers list, total count)
         """
-        # Build base query
+        # Build base query with package JOIN
         query = """
-            SELECT id, name, monthly_fee, package_start_date
-            FROM customers
-            WHERE is_active = true
+            SELECT c.id, c.name, c.monthly_fee, c.package_start_date, c.package_id, p.id as package_db_id, p.name as package_name
+            FROM customers c
+            LEFT JOIN packages p ON c.package_id = p.id
+            WHERE c.is_active = true
         """
         params = []
 
         # Add customer_id filter
         if customer_id is not None:
-            query += " AND id = ?"
+            query += " AND c.id = ?"
             params.append(customer_id)
 
         # Add customer_name filter
         if customer_name and customer_name.strip():
-            query += " AND LOWER(name) LIKE LOWER(?)"
+            query += " AND LOWER(c.name) LIKE LOWER(?)"
             params.append(f"%{customer_name.strip()}%")
 
         # Get total count
-        count_query = "SELECT COUNT(*) FROM customers WHERE is_active = true"
+        count_query = "SELECT COUNT(*) FROM customers c WHERE c.is_active = true"
         count_params = []
 
         if customer_id is not None:
-            count_query += " AND id = ?"
+            count_query += " AND c.id = ?"
             count_params.append(customer_id)
 
         if customer_name and customer_name.strip():
-            count_query += " AND LOWER(name) LIKE LOWER(?)"
+            count_query += " AND LOWER(c.name) LIKE LOWER(?)"
             count_params.append(f"%{customer_name.strip()}%")
 
         total = self.count(count_query, count_params)
 
         # Add pagination
-        paginated_query, offset = self.build_pagination_query(query, page, per_page, "name ASC")
+        paginated_query, offset = self.build_pagination_query(query, page, per_page, "c.name ASC")
         params.extend([per_page, offset])
 
         customers = self.execute_query(paginated_query, params)

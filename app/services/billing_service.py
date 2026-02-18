@@ -87,8 +87,11 @@ class BillingService:
             # Build matrix rows
             rows = []
             for customer in customers:
-                customer_id_val, name, monthly_fee, package_start_date = customer
-                row = self._build_billing_row(customer_id_val, name, monthly_fee, year, package_start_date)
+                customer_id_val, name, monthly_fee, package_start_date, package_id, package_db_id, package_name = customer
+                row = self._build_billing_row(
+                    customer_id_val, name, monthly_fee, year, package_start_date, 
+                    package_id, package_db_id, package_name
+                )
                 rows.append(row)
 
             month_names = list(calendar.month_name)[1:]
@@ -140,7 +143,8 @@ class BillingService:
             )
 
     def _build_billing_row(
-        self, customer_id: int, customer_name: str, monthly_fee: int, year: int, package_start_date = None
+        self, customer_id: int, customer_name: str, monthly_fee: int, year: int, package_start_date = None,
+        package_id: Optional[int] = None, package_db_id: Optional[int] = None, package_name: Optional[str] = None
     ) -> BillingMatrixRow:
         """
         Build a billing matrix row for a customer.
@@ -151,6 +155,9 @@ class BillingService:
             monthly_fee: Monthly fee amount
             year: Billing year
             package_start_date: Date when package started (for revenue calculation)
+            package_id: Package ID (same as package_db_id, for reference)
+            package_db_id: Package database ID
+            package_name: Package name
             
         Returns:
             BillingMatrixRow with payment status for all months and expected revenue
@@ -163,6 +170,13 @@ class BillingService:
         
         # Generate customer sqid
         customer_sqid = self.sqids_helper.encode_with_prefix(customer_id, 'customer')
+        
+        # Generate package sqid if package exists
+        package_info = None
+        if package_db_id is not None and package_name is not None:
+            from app.schemas import PackageInfo
+            package_sqid = self.sqids_helper.encode_with_prefix(package_db_id, 'package')
+            package_info = PackageInfo(id=package_sqid, name=package_name)
 
         # Get all payments for this customer in the specified year
         payments = self.billing_repo.find_payments_by_customer_and_year(customer_id, year)
@@ -228,7 +242,7 @@ class BillingService:
             id=customer_sqid,
             name=customer_name,
             monthly_fee=monthly_fee,
-            package=None,  # Package info not needed for billing matrix
+            package=package_info,  # Include package info from database
         )
 
         # Create matrix row
