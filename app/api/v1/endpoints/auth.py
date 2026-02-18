@@ -56,6 +56,16 @@ async def change_password(
     return SingleUserResponse(data=user)
 
 
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_session(
+    current_user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    """Refresh JWT token (prolongs session)"""
+    auth_service = AuthService(db)
+    return auth_service.refresh_token(int(current_user["sub"]))
+
+
 @router.get("/users", response_model=PaginatedUserResponse)
 async def list_users(
     page: int = 1,

@@ -8,15 +8,15 @@ from typing import Callable
 
 import bcrypt
 import jwt
-from fastapi import HTTPException, status, Depends
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 
 from app.core.config import settings
 from app.db.database import Database
-from app.schemas import RoleEnum, UserResponse, TokenResponse
+from app.schemas import RoleEnum, TokenResponse, UserResponse
 
 
-class PasswordManager:
+class PasswordManager:     
     """Manage password hashing and verification"""
 
     @staticmethod

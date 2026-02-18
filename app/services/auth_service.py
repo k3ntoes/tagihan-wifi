@@ -224,6 +224,25 @@ class AuthService:
                 detail=f"Database error: {str(e)}",
             )
 
+    def refresh_token(self, user_id: int) -> TokenResponse:
+        """Refresh access token for current user."""
+        user = self.user_repo.find_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
+        
+        user_id_val, username, role, is_active, created_at = user
+        
+        if not is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is not active",
+            )
+        
+        return TokenManager.create_access_token(user_id_val, username, role)
+
     def _build_user_response(self, row: tuple) -> UserResponse:
         """Build UserResponse from database row."""
         return UserResponse(
